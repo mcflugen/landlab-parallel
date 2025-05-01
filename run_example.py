@@ -1,0 +1,189 @@
+# FI_PROVIDER=tcp mpiexec -n 4 python run_test.py
+import argparse
+
+import numpy as np
+from landlab.components import FlowAccumulator
+from landlab.components import LinearDiffuser
+from landlab.components import StreamPowerEroder
+from numpy.typing import ArrayLike
+from numpy.typing import NDArray
+
+from landlab_parallel import RasterTiler
+from landlab_parallel import Tile
+from landlab_parallel import create_landlab_grid
+
+
+def run(shape):
+    from mpi4py import MPI
+
+    comm = MPI.COMM_WORLD
+    RANK = comm.Get_rank()
+    n_partitions = comm.Get_size()
+
+    if RANK == 0:
+        elevation = np.random.rand(np.prod(shape)).reshape(shape)
+        uplift = np.zeros_like(elevation)
+        uplift[1:-1, 1:-1] = 0.1
+
+        tiler = RasterTiler.from_pymetis(shape, n_partitions, mode="odd-r")
+
+        # print_output(tiler._partitions)
+
+        for _rank in range(1, n_partitions):
+            tile = tiler.get_tile(_rank)
+            offset = np.asarray([s.start for s in tiler.tiles[_rank]], dtype="i")
+
+            comm.Send(np.array(tile.shape, dtype="i"), dest=_rank, tag=0)
+            comm.Send(offset, dest=_rank, tag=1)
+            comm.Send(tile.flatten(), dest=_rank, tag=2)
+            comm.Send(tiler.scatter(elevation)[_rank].flatten(), dest=_rank, tag=3)
+            comm.Send(tiler.scatter(uplift)[_rank].flatten(), dest=_rank, tag=4)
+
+        tile = tiler.get_tile(RANK)
+        tile_shape = np.array(tile.shape, dtype="i")
+        offset = np.asarray([s.start for s in tiler.tiles[RANK]], dtype="i")
+        partition = np.asarray(tile, dtype=int)
+        elevation = tiler.scatter(elevation)[RANK]
+        uplift = tiler.scatter(uplift)[RANK]
+    else:
+        tile_shape = np.empty(2, dtype="i")
+        offset = np.empty(2, dtype="i")
+        comm.Recv(tile_shape, source=0, tag=0)
+        comm.Recv(offset, source=0, tag=1)
+
+        partition = np.empty(tile_shape, dtype=int)
+        elevation = np.empty(tile_shape, dtype=float)
+        uplift = np.empty(tile_shape, dtype=float)
+        comm.Recv(partition.reshape(-1), source=0, tag=2)
+        comm.Recv(elevation.reshape(-1), source=0, tag=3)
+        comm.Recv(uplift.reshape(-1), source=0, tag=4)
+
+    my_tile = Tile(offset, shape, partition, id_=RANK)
+
+    my_ghosts = transform_values(my_tile._ghost_nodes, my_tile.local_to_global)
+    their_ghosts = send_receive_ghost_ids(comm, my_ghosts)
+
+    my_ghosts = transform_values(my_ghosts, my_tile.global_to_local)
+    their_ghosts = transform_values(their_ghosts, my_tile.global_to_local)
+
+    grid = create_landlab_grid(
+        partition,
+        xy_of_lower_left=offset,
+        spacing=100.0,
+        id_=RANK,
+        mode="odd-r",
+    )
+
+    grid.at_node["topographic__elevation"] = elevation.reshape(-1)
+    uplift.shape = (-1,)
+
+    fa = FlowAccumulator(grid)
+    sp = StreamPowerEroder(grid, K_sp=0.0001)
+    ld = LinearDiffuser(grid, linear_diffusivity=0.01)
+
+    for _ in range(2000):
+        grid.at_node["topographic__elevation"] += uplift
+
+        ld.run_one_step(250.0)
+        fa.run_one_step()
+        sp.run_one_step(250.0)
+
+        send_receive_ghost_data(
+            comm, my_ghosts, their_ghosts, grid.at_node["topographic__elevation"]
+        )
+
+    if RANK == 0:
+        tile_data = {0: grid.at_node["topographic__elevation"]}
+        for rank in range(1, n_partitions):
+            tile_data[rank] = tiler.empty(rank, dtype=float)
+            comm.Recv(tile_data[rank], source=rank, tag=0)
+
+        print_output(tiler.gather(tile_data))
+    else:
+        comm.Send(grid.at_node["topographic__elevation"], dest=0, tag=0)
+
+    return 0
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("size", type=int, help="Size of the grid")
+
+    args = parser.parse_args()
+
+    return run((args.size, 2 * args.size))
+
+
+def print_output(array):
+    import matplotlib.pyplot as plt
+    import tabulate
+
+    if True:
+        plt.imshow(array)
+        plt.show()
+    else:
+        print(tabulate.tabulate(array))
+
+
+def transform_values(d: dict[int, NDArray], xform, inplace=False):
+    if inplace:
+        for array in d.values():
+            array[:] = xform(array)
+        return d
+    else:
+        return {key: xform(array).astype("i") for key, array in d.items()}
+
+
+def send_receive_ghost_ids(comm, my_ghosts: dict[int, ArrayLike]):
+    my_rank = comm.Get_rank()
+
+    my_count = np.empty(1, dtype="i")
+    their_count = np.empty(1, dtype="i")
+
+    their_ghosts = {}
+    for rank in my_ghosts:
+        my_count[0] = len(my_ghosts[rank])
+        comm.Sendrecv(
+            my_count,
+            rank,
+            sendtag=my_rank,
+            recvbuf=their_count,
+            source=rank,
+            recvtag=rank,
+        )
+        their_ghosts[rank] = np.empty(their_count[0], dtype="i")
+
+    for rank in my_ghosts:
+        comm.Sendrecv(
+            my_ghosts[rank],
+            rank,
+            sendtag=my_rank,
+            recvbuf=their_ghosts[rank],
+            source=rank,
+            recvtag=rank,
+        )
+
+    return their_ghosts
+
+
+def send_receive_ghost_data(comm, my_ghosts, their_ghosts, data: NDArray):
+    my_rank = comm.Get_rank()
+
+    for rank in my_ghosts:
+        data_to_send = data[their_ghosts[rank]]
+        data_to_receive = np.empty(len(my_ghosts[rank]), dtype=float)
+
+        comm.Sendrecv(
+            data_to_send,
+            rank,
+            sendtag=my_rank,
+            recvbuf=data_to_receive,
+            source=rank,
+            recvtag=rank,
+        )
+
+        data[my_ghosts[rank]] = data_to_receive
+
+
+if __name__ == "__main__":
+    SystemExit(main())
