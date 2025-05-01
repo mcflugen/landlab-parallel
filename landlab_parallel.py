@@ -1,0 +1,585 @@
+from __future__ import annotations
+
+import landlab
+import numpy as np
+import pymetis
+from numpy.typing import ArrayLike
+from numpy.typing import NDArray
+
+__version__ = "0.1.0"
+
+
+class Tile:
+    def __init__(
+        self,
+        offset: tuple[int, ...],
+        shape: tuple[int, ...],
+        data: ArrayLike,
+        id_: int,
+        mode: str = "raster",
+    ):
+        self._shape = tuple(shape)
+        self._offset = tuple(offset)
+        self._data = np.asarray(data)
+        self._id = id_
+
+        if mode == "raster":
+            get_ghosts = _get_neighbor_ghosts
+        elif mode == "odd-r":
+            get_ghosts = _odd_r_ghosts
+        else:
+            raise ValueError(f"{mode!r}: unknown mode, not one of 'odd-r', 'raster'")
+
+        self._index_mapper = IndexMapper(
+            self._shape,
+            submatrix=[(o, o + data.shape[dim]) for dim, o in enumerate(offset)],
+        )
+
+        self._ghost_nodes = {
+            rank: np.asarray(nodes, dtype="i")
+            for rank, nodes in get_ghosts(data, rank=self._id).items()
+        }
+
+    def local_to_global(self, indices):
+        return self._index_mapper.local_to_global(indices)
+
+    def global_to_local(self, indices):
+        return self._index_mapper.global_to_local(indices)
+
+
+class RasterTiler:
+    def __init__(self, partitions: ArrayLike):
+        """
+        Examples
+        --------
+        >>> from landlab_parallel import RasterTiler
+
+        >>> partitions = [
+        ...     [0, 0, 1, 1, 1],
+        ...     [0, 0, 0, 1, 1],
+        ...     [0, 2, 2, 1, 1],
+        ...     [3, 3, 2, 2, 1],
+        ...     [3, 3, 2, 2, 2],
+        ... ]
+        >>> tiler = RasterTiler(partitions)
+        >>> tiler.n_tiles
+        4
+        >>> tiler.get_tile(0)
+        array([[0, 0, 1, 1],
+               [0, 0, 0, 1],
+               [0, 2, 2, 1],
+               [3, 3, 2, 2]])
+
+        >>> data = [
+        ...     [0.0, 1.0, 2.0, 3.0, 4.0],
+        ...     [5.0, 6.0, 7.0, 8.0, 9.0],
+        ...     [10.0, 11.0, 12.0, 13.0, 14.0],
+        ...     [15.0, 16.0, 17.0, 18.0, 19.0],
+        ...     [20.0, 21.0, 22.0, 23.0, 24.0],
+        ... ]
+        >>> tile_data = tiler.scatter(data)
+        >>> tile_data[1]
+        array([[ 1.,  2.,  3.,  4.],
+               [ 6.,  7.,  8.,  9.],
+               [11., 12., 13., 14.],
+               [16., 17., 18., 19.],
+               [21., 22., 23., 24.]])
+
+        >>> for array in tile_data.values():
+        ...     array /= 10.0
+        ...
+        >>> tile_data[1] *= 10.0
+        >>> tiler.gather(tile_data)
+        array([[ 0. ,  0.1,  2. ,  3. ,  4. ],
+               [ 0.5,  0.6,  0.7,  8. ,  9. ],
+               [ 1. ,  1.1,  1.2, 13. , 14. ],
+               [ 1.5,  1.6,  1.7,  1.8, 19. ],
+               [ 2. ,  2.1,  2.2,  2.3,  2.4]])
+        """
+        self._partitions = np.asarray(partitions)
+        self._shape = self._partitions.shape
+
+        self.tiles = {
+            int(tile): tuple(
+                slice(*bound)
+                for bound in _submatrix_bounds(self._partitions, tile, halo=1)
+            )
+            for tile in np.unique(self._partitions)
+        }
+
+        self._index_mapper = {
+            IndexMapper(
+                self._shape, submatrix=[(s.start, s.stop) for s in self.tiles[tile]]
+            )
+            for tile in self.tiles
+        }
+
+    @classmethod
+    def from_pymetis(cls, shape: tuple[int, ...], n_tiles: int, mode="raster"):
+        """
+        Examples
+        --------
+        >>> from landlab_parallel import RasterTiler
+        >>> tiler = RasterTiler.from_pymetis((5, 5), 3)
+        >>> tiler._partitions
+        array([[2, 2, 2, 1, 1],
+               [2, 2, 2, 1, 1],
+               [2, 2, 2, 1, 1],
+               [0, 0, 0, 1, 1],
+               [0, 0, 0, 0, 0]])
+        """
+        if mode == "odd-r":
+            get_adjacency = _hex_grid_adjacency_odd_r
+        elif mode == "raster":
+            get_adjacency = _get_adjacency_list
+        else:
+            raise ValueError(f"{mode!r}: unknown mode, not one of 'odd-r', 'raster'")
+
+        _, partitions = pymetis.part_graph(
+            n_tiles, adjacency=list(get_adjacency(shape))
+        )
+        partitions = np.asarray(partitions).reshape(shape)
+
+        return cls(partitions)
+
+    @property
+    def n_tiles(self):
+        return len(self.tiles)
+
+    def get_tile(self, tile: int) -> NDArray[int]:
+        return self._partitions[*self.tiles[tile]]
+
+    def scatter(self, data: ArrayLike) -> dict[int, ArrayLike]:
+        data = np.asarray(data).reshape(self._shape)
+        return {tile: data[*bounds].copy() for tile, bounds in self.tiles.items()}
+
+    def gather(
+        self, tile_data: dict[int, ArrayLike], out: NDArray | None = None
+    ) -> NDArray:
+        if out is None:
+            out = np.empty(self._shape)
+
+        for tile, data in tile_data.items():
+            array = out[*self.tiles[tile]]
+            mask = self._partitions[*self.tiles[tile]] == tile
+            array[mask] = data.reshape(mask.shape)[mask]
+
+        return out
+
+    def global_to_local(self, indices: ArrayLike, tile: int) -> ArrayLike:
+        return self._index_mapper[tile].global_to_local(indices)
+
+    def local_to_global(self, indices: ArrayLike, tile: int) -> ArrayLike:
+        return self._index_mapper[tile].local_to_global(indices)
+
+    def empty(self, tile: int, dtype=float):
+        return np.empty([s.stop - s.start for s in self.tiles[tile]], dtype=dtype)
+
+
+class IndexMapper:
+    def __init__(self, shape, submatrix=None):
+        self._shape = tuple(shape)
+        if submatrix is None:
+            self._limits = [(0, self._shape[dim]) for dim in range(len(self._shape))]
+        else:
+            self._limits = [(limit[0], limit[1]) for limit in submatrix]
+
+        if len(self._limits) != len(self._shape):
+            raise ValueError()
+        if any(
+            limit[0] < 0 or limit[1] > dim
+            for limit, dim in zip(self._limits, self._shape)
+        ):
+            raise ValueError()
+
+    def local_to_global(self, indices):
+        coords = np.unravel_index(
+            indices,
+            [limit[1] - limit[0] for limit in self._limits],
+        )
+        return np.ravel_multi_index(
+            [coords[dim] + self._limits[dim][0] for dim in range(len(coords))],
+            self._shape,
+        )
+
+    def global_to_local(self, indices):
+        coords = np.unravel_index(indices, self._shape)
+        return np.ravel_multi_index(
+            [coords[dim] - self._limits[dim][0] for dim in range(len(coords))],
+            [limit[1] - limit[0] for limit in self._limits],
+        )
+
+
+def _get_adjacency_list(shape: tuple[int]):
+
+    nodes = np.pad(
+        np.arange(shape[0] * shape[1]).reshape(shape),
+        pad_width=((1, 1), (1, 1)),
+        mode="constant",
+        constant_values=-1,
+    )
+
+    return [
+        [int(n) for n in neighbors if n != -1]
+        for neighbors in zip(
+            nodes[1:-1, 2:].flat,
+            nodes[2:, 1:-1].flat,
+            nodes[1:-1, :-2].flat,
+            nodes[:-2, 1:-1].flat,
+        )
+    ]
+
+
+def _hex_grid_adjacency_odd_r(shape: tuple[int, int]):
+    nrows, ncols = shape
+    rows, cols = np.meshgrid(np.arange(nrows), np.arange(ncols), indexing="ij")
+    node_ids = rows * ncols + cols
+
+    even_offsets = np.array([[0, 1], [1, 0], [1, -1], [0, -1], [-1, -1], [-1, 0]])
+    odd_offsets = np.array([[0, 1], [1, 1], [1, 0], [0, -1], [-1, 0], [-1, 1]])
+
+    adjacency = [[] for _ in range(nrows * ncols)]
+
+    for parity, offsets in enumerate([even_offsets, odd_offsets]):
+        parity_mask = rows % 2 == parity
+
+        row_indices = rows[parity_mask]
+        col_indices = cols[parity_mask]
+        base_ids = node_ids[parity_mask]
+
+        for dr, dc in offsets:
+            r = row_indices + dr
+            c = col_indices + dc
+
+            valid = (0 <= r) & (r < nrows) & (0 <= c) & (c < ncols)
+            src = base_ids[valid]
+            dst = r[valid] * ncols + c[valid]
+
+            for s, d in zip(src, dst):
+                adjacency[s].append(int(d))
+
+    return adjacency
+
+
+def _submatrix_bounds(
+    array: ArrayLike,
+    value: int | None = None,
+    halo: int = 0,
+):
+    """Find the bounds of a submatrix.
+
+    Examples
+    --------
+    >>> from landlab_parallel import _submatrix_bounds
+    >>> partitions = [
+    ...     [0, 0, 1, 1, 1],
+    ...     [0, 0, 0, 1, 1],
+    ...     [0, 2, 2, 1, 1],
+    ...     [3, 3, 2, 2, 1],
+    ...     [3, 3, 2, 2, 2],
+    ... ]
+    >>> _submatrix_bounds(partitions, 2)
+    [(2, 5), (1, 5)]
+    >>> _submatrix_bounds(partitions, 3, halo=1)
+    [(2, 5), (0, 3)]
+    >>> bounds = _submatrix_bounds(partitions, 3, halo=1)
+
+    >>> partitions = np.asarray(partitions)
+    >>> partitions[slice(*bounds[0]), slice(*bounds[1])]
+    array([[0, 2, 2],
+           [3, 3, 2],
+           [3, 3, 2]])
+    """
+    array = np.asarray(array)
+
+    if value is None:
+        indices = np.nonzero(array)
+    else:
+        indices = np.nonzero(array == value)
+
+    return [
+        (
+            int(max(indices[dim].min() - halo, 0)),
+            int(min(indices[dim].max() + halo + 1, array.shape[dim])),
+        )
+        for dim in range(array.ndim)
+    ]
+
+
+def create_landlab_grid(
+    partition: ArrayLike,
+    spacing: float | tuple[float, float] = 1.0,
+    xy_of_lower_left: tuple[float] | float = 0.0,
+    id_: int = 0,
+    mode="raster",
+):
+    partition = np.asarray(partition)
+
+    if mode == "d4":
+        grid = landlab.RasterModelGrid(
+            partition.shape,
+            xy_spacing=spacing,
+            xy_of_lower_left=xy_of_lower_left,
+        )
+        get_ghosts = _d4_ghosts
+    elif mode == "odd-r":
+        grid = landlab.HexModelGrid(
+            partition.shape,
+            spacing=spacing,
+            xy_of_lower_left=xy_of_lower_left,
+            node_layout="rect",
+        )
+        get_ghosts = _odd_r_ghosts
+
+    my_nodes = partition == id_
+    ghosts = get_ghosts(my_nodes).reshape(-1)
+    my_nodes.shape = (-1,)
+
+    grid.status_at_node[~my_nodes] = landlab.NodeStatus.CLOSED
+    grid.status_at_node[~my_nodes & ghosts] = landlab.NodeStatus.FIXED_VALUE
+
+    return grid
+
+
+def _d4_ghosts(partition: ArrayLike):
+    """Identify nodes that are ghost nodes.
+
+    Parameters
+    ----------
+    partition: array_like of int
+        Partition matrix.
+
+    Returns
+    -------
+    ndarray or bool
+        Nodes that are ghosts.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from landlab_parallel import _d4_ghosts
+
+    >>> partitions = [
+    ...     [0, 0, 1, 1, 1],
+    ...     [0, 0, 0, 1, 1],
+    ...     [0, 2, 2, 1, 1],
+    ...     [3, 3, 2, 2, 1],
+    ...     [3, 3, 2, 2, 2],
+    ... ]
+    >>> _d4_ghosts(partitions).astype(int)
+    array([[0, 1, 1, 0, 0],
+           [0, 1, 1, 1, 0],
+           [1, 1, 1, 1, 0],
+           [1, 1, 1, 1, 1],
+           [0, 1, 1, 0, 1]])
+
+    Ghost nodes of partition 1.
+
+    >>> is_partition_1 = np.asarray(partitions) == 1
+    >>> (_d4_ghosts(is_partition_1) & ~is_partition_1).astype(int)
+    array([[0, 1, 0, 0, 0],
+           [0, 0, 1, 0, 0],
+           [0, 0, 1, 0, 0],
+           [0, 0, 0, 1, 0],
+           [0, 0, 0, 0, 1]])
+    """
+    partition = np.pad(
+        partition,
+        pad_width=((1, 1), (1, 1)),
+        mode="edge",
+    )
+
+    right = partition[2:, 1:-1]
+    top = partition[1:-1, 2:]
+    left = partition[:-2, 1:-1]
+    bottom = partition[1:-1, :-2]
+
+    core = partition[1:-1, 1:-1]
+
+    return (core != right) | (core != top) | (core != left) | (core != bottom)
+
+
+def _d8_ghosts(partition: ArrayLike):
+    """Identify nodes that are ghost nodes, considering diagonals.
+
+    Parameters
+    ----------
+    partition: array_like of int
+        Partition matrix.
+
+    Returns
+    -------
+    ndarray or bool
+        Nodes that are ghosts.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from landlab_parallel import _d8_ghosts
+
+    >>> partitions = [
+    ...     [0, 0, 1, 1, 1],
+    ...     [0, 0, 0, 1, 1],
+    ...     [0, 2, 2, 1, 1],
+    ...     [3, 3, 2, 2, 1],
+    ...     [3, 3, 2, 2, 2],
+    ... ]
+    >>> _d8_ghosts(partitions).astype(int)
+    array([[0, 1, 1, 1, 0],
+           [1, 1, 1, 1, 0],
+           [1, 1, 1, 1, 1],
+           [1, 1, 1, 1, 1],
+           [0, 1, 1, 1, 1]])
+
+    Ghost nodes of partition 1.
+
+    >>> is_partition_1 = np.asarray(partitions) == 1
+    >>> (_d8_ghosts(is_partition_1) & ~is_partition_1).astype(int)
+    array([[0, 1, 0, 0, 0],
+           [0, 1, 1, 0, 0],
+           [0, 0, 1, 0, 0],
+           [0, 0, 1, 1, 0],
+           [0, 0, 0, 1, 1]])
+    """
+    partition = np.pad(
+        partition,
+        pad_width=((1, 1), (1, 1)),
+        mode="edge",
+    )
+
+    right = partition[1:-1, 2:]
+    top_right = partition[2:, 2:]
+    top = partition[2:, 1:-1]
+    top_left = partition[2:, :-2]
+    left = partition[1:-1, :-2]
+    bottom_left = partition[:-2, :-2]
+    bottom = partition[:-2, 1:-1]
+    bottom_right = partition[:-2, 2:]
+
+    core = partition[1:-1, 1:-1]
+
+    neighbors = np.stack(
+        [right, top_right, top, top_left, left, bottom_left, bottom, bottom_right]
+    )
+
+    return np.any(core != neighbors, axis=0)
+
+
+def _odd_r_ghosts(partition: ArrayLike):
+    """Identify nodes that are ghost nodes on an odd-r layout.
+
+    Parameters
+    ----------
+    partition: array_like of int
+        Partition matrix.
+
+    Returns
+    -------
+    ndarray or bool
+        Nodes that are ghosts.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from landlab_parallel import _odd_r_ghosts
+
+    >>> partitions = [
+    ...     [0, 0, 1, 1, 1],
+    ...     [0, 0, 0, 1, 1],
+    ...     [0, 2, 2, 1, 1],
+    ...     [3, 3, 2, 2, 1],
+    ...     [3, 3, 2, 2, 2],
+    ... ]
+    >>> _odd_r_ghosts(partitions).astype(int)
+    array([[0, 1, 1, 1, 0],
+           [1, 1, 1, 1, 0],
+           [1, 1, 1, 1, 1],
+           [1, 1, 1, 1, 1],
+           [0, 1, 1, 0, 1]])
+
+    Ghost nodes of partition 1.
+
+    >>> is_partition_1 = np.asarray(partitions) == 1
+    >>> (_odd_r_ghosts(is_partition_1) & ~is_partition_1).astype(int)
+    array([[0, 1, 0, 0, 0],
+           [0, 1, 1, 0, 0],
+           [0, 0, 1, 0, 0],
+           [0, 0, 1, 1, 0],
+           [0, 0, 0, 0, 1]])
+    """
+    partition = np.pad(partition, pad_width=((1, 1), (1, 1)), mode="edge")
+
+    right = partition[1:-1, 2:]
+    top_right = partition[2:, 2:]
+    top = partition[2:, 1:-1]
+    top_left = partition[2:, :-2]
+    left = partition[1:-1, :-2]
+    bottom_left = partition[:-2, :-2]
+    bottom = partition[:-2, 1:-1]
+    bottom_right = partition[:-2, 2:]
+
+    core = partition[1:-1, 1:-1]
+
+    row_indices = np.indices(core.shape)[0]
+    is_even_row = (row_indices % 2) == 0
+    is_odd_row = ~is_even_row
+
+    is_ghost = np.zeros_like(core, dtype=bool)
+
+    for neighbor in (right, top, top_left, left, bottom_left, bottom):
+        is_ghost[is_even_row] |= core[is_even_row] != neighbor[is_even_row]
+
+    for neighbor in (right, top_right, top, left, bottom, bottom_right):
+        is_ghost[is_odd_row] |= core[is_odd_row] != neighbor[is_odd_row]
+
+    return is_ghost
+
+
+def _neighbor_partitions(partitions, rank: int = 0):
+    """Get partitions that are neighbors.
+
+    Examples
+    --------
+    >>> from landlab_parallel import _neighbor_partitions
+    >>> partitions = [
+    ...     [0, 0, 1, 1, 1],
+    ...     [0, 0, 0, 1, 1],
+    ...     [0, 2, 2, 1, 1],
+    ...     [3, 3, 2, 2, 1],
+    ...     [3, 3, 2, 2, 2],
+    ... ]
+    >>> _neighbor_partitions(partitions, rank=0)
+    array([1, 2, 3])
+    >>> _neighbor_partitions(partitions, rank=1)
+    array([0, 2])
+    """
+    partitions = np.asarray(partitions)
+    is_my_node = partitions == rank
+    return np.unique(partitions[_d4_ghosts(is_my_node) & ~is_my_node])
+
+
+def _get_neighbor_ghosts(partitions, rank: int = 0):
+    """
+    Examples
+    --------
+    >>> from landlab_parallel import _get_neighbor_ghosts
+    >>> partitions = [
+    ...     [0, 0, 1, 1, 1],
+    ...     [0, 0, 0, 1, 1],
+    ...     [0, 2, 2, 1, 1],
+    ...     [3, 3, 2, 2, 1],
+    ...     [3, 3, 2, 2, 2],
+    ... ]
+    >>> _get_neighbor_ghosts(partitions, rank=1)
+    """
+    partitions = np.asarray(partitions)
+
+    neighbors = _neighbor_partitions(partitions, rank=rank)
+    ghosts = _d4_ghosts(partitions == rank)
+
+    return {
+        int(partition): np.ravel_multi_index(
+            np.nonzero(ghosts & (partitions == partition)), partitions.shape
+        )
+        for partition in neighbors
+    }
