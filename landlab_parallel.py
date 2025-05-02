@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import tempfile
+from xml.dom import minidom
+
 import landlab
+import meshio
 import numpy as np
 import pymetis
 from numpy.typing import ArrayLike
@@ -583,3 +587,35 @@ def _get_neighbor_ghosts(partitions, rank: int = 0):
         )
         for partition in neighbors
     }
+
+
+def vtu_dump(grid, stream=None, include="*", exclude=None, z_coord=0.0, at="node"):
+    with tempfile.NamedTemporaryFile(suffix=".vtk", mode="w+", delete=False) as tmp:
+        tmp.write(
+            landlab.io.legacy_vtk.dump(
+                grid, include=include, exclude=exclude, z_coord=z_coord, at=at
+            )
+        )
+        tmp.flush()
+        mesh = meshio.read(tmp.name)
+
+    with tempfile.NamedTemporaryFile(suffix=".vtu", mode="r+", delete=False) as tmp:
+        tmp.close()
+        meshio.write(tmp.name, mesh)
+        with open(tmp.name, encoding="utf-8") as f:
+            contents = f.read()
+
+    content = "\n".join(
+        [
+            line
+            for line in minidom.parseString(contents)
+            .toprettyxml(indent="  ")
+            .splitlines()
+            if line.strip()
+        ]
+    )
+
+    if stream is None:
+        return content
+    else:
+        stream.write(content)
