@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import os
 import tempfile
+import xml.etree.ElementTree as ET
 from xml.dom import minidom
 
 import landlab
@@ -619,3 +621,31 @@ def vtu_dump(grid, stream=None, include="*", exclude=None, z_coord=0.0, at="node
         return content
     else:
         stream.write(content)
+
+
+def pvtu_dump(grid, vtu_files=()):
+    vtkfile = ET.Element(
+        "VTKFile", type="PUnstructuredGrid", version="1.0", byte_order="LittleEndian"
+    )
+    pgrid = ET.SubElement(vtkfile, "PUnstructuredGrid", GhostLevel="0")
+
+    ppoints = ET.SubElement(pgrid, "PPoints")
+    ET.SubElement(
+        ppoints, "PDataArray", type="Float32", NumberOfComponents="3", Name="Points"
+    )
+
+    if grid.at_node:
+        pdata = ET.SubElement(pgrid, "PPointData")
+        for name in grid.at_node:
+            ET.SubElement(
+                pdata, "PDataArray", type="Float32", Name=name, NumberOfComponents="1"
+            )
+
+    for f in vtu_files:
+        ET.SubElement(pgrid, "Piece", Source=os.path.basename(f))
+
+    tree = ET.ElementTree(vtkfile)
+
+    parsed = minidom.parseString(ET.tostring(tree.getroot()))
+
+    return parsed.toprettyxml(indent="  ")
