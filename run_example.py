@@ -11,6 +11,7 @@ from numpy.typing import NDArray
 from landlab_parallel import RasterTiler
 from landlab_parallel import Tile
 from landlab_parallel import create_landlab_grid
+from landlab_parallel import pvtu_dump
 from landlab_parallel import vtu_dump
 
 
@@ -103,6 +104,9 @@ def run(shape):
             comm.Recv(tile_data[rank], source=rank, tag=0)
 
         print_output(tiler.gather(tile_data))
+
+        with open("full.pvtu", "w") as fp:
+            fp.write(pvtu_dump(grid, [f"{rank}.vtu" for rank in range(n_partitions)]))
     else:
         comm.Send(grid.at_node["topographic__elevation"], dest=0, tag=0)
 
