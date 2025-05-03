@@ -11,6 +11,7 @@ from numpy.typing import NDArray
 from landlab_parallel import RasterTiler
 from landlab_parallel import Tile
 from landlab_parallel import create_landlab_grid
+from landlab_parallel import vtu_dump
 
 
 def run(shape):
@@ -91,6 +92,9 @@ def run(shape):
         send_receive_ghost_data(
             comm, my_ghosts, their_ghosts, grid.at_node["topographic__elevation"]
         )
+
+    with open(f"{RANK}.vtu", "w") as fp:
+        fp.write(vtu_dump(grid, z_coord="topographic__elevation"))
 
     if RANK == 0:
         tile_data = {0: grid.at_node["topographic__elevation"]}
