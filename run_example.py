@@ -29,7 +29,7 @@ def run(shape, mode):
         uplift = np.zeros_like(elevation)
         uplift[1:-1, 1:-1] = 0.1
 
-        tiler = RasterTiler.from_pymetis(shape, n_partitions, mode="odd-r")
+        tiler = RasterTiler.from_pymetis(shape, n_partitions, mode=mode)
 
         # print_output(tiler._partitions)
 
