@@ -22,8 +22,6 @@ def run(shape, mode="odd-r", seed=None):
     RANK = comm.Get_rank()
     n_partitions = comm.Get_size()
 
-    mode = "odd-r"
-
     if RANK == 0:
         rng = np.random.default_rng(seed=seed)
         elevation = rng.uniform(size=shape)
