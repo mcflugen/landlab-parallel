@@ -15,7 +15,7 @@ from landlab_parallel import pvtu_dump
 from landlab_parallel import vtu_dump
 
 
-def run(shape):
+def run(shape, mode):
     from mpi4py import MPI
 
     comm = MPI.COMM_WORLD
@@ -29,7 +29,7 @@ def run(shape):
         uplift = np.zeros_like(elevation)
         uplift[1:-1, 1:-1] = 0.1
 
-        tiler = RasterTiler.from_pymetis(shape, n_partitions, mode="odd-r")
+        tiler = RasterTiler.from_pymetis(shape, n_partitions, mode=mode)
 
         # print_output(tiler._partitions)
 
@@ -127,10 +127,11 @@ def run(shape):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("size", type=int, help="Size of the grid")
+    parser.add_argument("--mode", choices=("raster", "odd-r"), help="Grid type")
 
     args = parser.parse_args()
 
-    return run((args.size, 2 * args.size))
+    return run((args.size, 2 * args.size), args.mode)
 
 
 def print_output(array):

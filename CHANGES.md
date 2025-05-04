@@ -9,3 +9,6 @@
   [#3](https://github.com/mcflugen/landlab-parallel/issues/3).
 - Fixed an issue where the lower-left corner of the tiles were not be calculated
   correctly [#4](https://github.com/mcflugen/landlab-parallel/issues/4).
+- Added a command-line argument, `mode`, that allows the user to modify
+  the type of grid used for the example
+  [#5](https://github.com/mcflugen/landlab-parallel/issues/5).
