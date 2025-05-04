@@ -96,11 +96,16 @@ def run(shape, mode="odd-r", seed=None):
     sp = StreamPowerEroder(grid, K_sp=0.0001)
     ld = LinearDiffuser(grid, linear_diffusivity=0.01)
 
+    components = [(uplift, (250.0,)), (ld, (250.0,)), (fa, ()), (sp, (250.0,))]
     for _ in range(2000):
-        uplift.run_one_step(250.0)
-        ld.run_one_step(250.0)
-        fa.run_one_step()
-        sp.run_one_step(250.0)
+        for component, args in components:
+            component.run_one_step(*args)
+            send_receive_ghost_data(
+                comm,
+                my_ghosts,
+                their_ghosts,
+                (grid.at_node["topographic__elevation"], grid.at_node["drainage_area"]),
+            )
 
         send_receive_ghost_data(
             comm, my_ghosts, their_ghosts, grid.at_node["topographic__elevation"]
