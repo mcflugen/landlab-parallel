@@ -15,7 +15,7 @@ from landlab_parallel import pvtu_dump
 from landlab_parallel import vtu_dump
 
 
-def run(shape):
+def run(shape, mode):
     from mpi4py import MPI
 
     comm = MPI.COMM_WORLD
@@ -131,7 +131,7 @@ def main():
 
     args = parser.parse_args()
 
-    return run((args.size, 2 * args.size))
+    return run((args.size, 2 * args.size), args.mode)
 
 
 def print_output(array):
