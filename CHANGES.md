@@ -12,3 +12,6 @@
 - Added a command-line argument, `mode`, that allows the user to modify
   the type of grid used for the example
   [#5](https://github.com/mcflugen/landlab-parallel/issues/5).
+- Added a command-line argument, `seed`, that allows the user to provide
+  a seed for the random number generator used to create the initial elevations
+  [#6](https://github.com/mcflugen/landlab-parallel/issues/6).
