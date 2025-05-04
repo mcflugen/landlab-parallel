@@ -22,6 +22,8 @@ def run(shape):
     RANK = comm.Get_rank()
     n_partitions = comm.Get_size()
 
+    mode = "odd-r"
+
     if RANK == 0:
         elevation = np.random.rand(np.prod(shape)).reshape(shape)
         uplift = np.zeros_like(elevation)
