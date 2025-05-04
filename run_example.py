@@ -27,8 +27,8 @@ def run(shape, mode="odd-r", seed=None):
     if RANK == 0:
         rng = np.random.default_rng(seed=seed)
         elevation = rng.uniform(size=shape)
-        uplift = np.zeros_like(elevation)
-        uplift[1:-1, 1:-1] = 0.1
+        uplift_rate = np.zeros_like(elevation)
+        uplift_rate[1:-1, 1:-1] = 0.0004
 
         tiler = RasterTiler.from_pymetis(shape, n_partitions, mode=mode)
 
@@ -42,14 +42,14 @@ def run(shape, mode="odd-r", seed=None):
             comm.Send(offset, dest=_rank, tag=1)
             comm.Send(tile.flatten(), dest=_rank, tag=2)
             comm.Send(tiler.scatter(elevation)[_rank].flatten(), dest=_rank, tag=3)
-            comm.Send(tiler.scatter(uplift)[_rank].flatten(), dest=_rank, tag=4)
+            comm.Send(tiler.scatter(uplift_rate)[_rank].flatten(), dest=_rank, tag=4)
 
         tile = tiler.get_tile(RANK)
         tile_shape = np.array(tile.shape, dtype="i")
         offset = np.asarray([s.start for s in tiler.tiles[RANK]], dtype="i")
         partition = np.asarray(tile, dtype=int)
         elevation = tiler.scatter(elevation)[RANK]
-        uplift = tiler.scatter(uplift)[RANK]
+        uplift_rate = tiler.scatter(uplift_rate)[RANK]
     else:
         tile_shape = np.empty(2, dtype="i")
         offset = np.empty(2, dtype="i")
@@ -58,10 +58,10 @@ def run(shape, mode="odd-r", seed=None):
 
         partition = np.empty(tile_shape, dtype=int)
         elevation = np.empty(tile_shape, dtype=float)
-        uplift = np.empty(tile_shape, dtype=float)
+        uplift_rate = np.empty(tile_shape, dtype=float)
         comm.Recv(partition.reshape(-1), source=0, tag=2)
         comm.Recv(elevation.reshape(-1), source=0, tag=3)
-        comm.Recv(uplift.reshape(-1), source=0, tag=4)
+        comm.Recv(uplift_rate.reshape(-1), source=0, tag=4)
 
     my_tile = Tile(offset, shape, partition, id_=RANK)
 
@@ -88,16 +88,16 @@ def run(shape, mode="odd-r", seed=None):
         mode=mode,
     )
 
-    grid.at_node["topographic__elevation"] = elevation.reshape(-1)
-    uplift.shape = (-1,)
+    grid.add_field("topographic__elevation", elevation, at="node")
+    grid.add_field("uplift_rate", uplift_rate, at="node")
 
+    uplift = Uplift(grid)
     fa = FlowAccumulator(grid)
     sp = StreamPowerEroder(grid, K_sp=0.0001)
     ld = LinearDiffuser(grid, linear_diffusivity=0.01)
 
     for _ in range(2000):
-        grid.at_node["topographic__elevation"] += uplift
-
+        uplift.run_one_step(250.0)
         ld.run_one_step(250.0)
         fa.run_one_step()
         sp.run_one_step(250.0)
@@ -123,6 +123,17 @@ def run(shape, mode="odd-r", seed=None):
         comm.Send(grid.at_node["topographic__elevation"], dest=0, tag=0)
 
     return 0
+
+
+class Uplift:
+    def __init__(self, grid, uplift_rate=1.0):
+        self.grid = grid
+
+    def run_one_step(self, dt):
+        z = self.grid.at_node["topographic__elevation"]
+        dz_dt = self.grid.at_node["uplift_rate"]
+
+        z += dz_dt * dt
 
 
 def main():

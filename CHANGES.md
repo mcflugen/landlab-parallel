@@ -15,3 +15,5 @@
 - Added a command-line argument, `seed`, that allows the user to provide
   a seed for the random number generator used to create the initial elevations
   [#6](https://github.com/mcflugen/landlab-parallel/issues/6).
+- Added a new component, `Uplift`, that uplifts the landscape
+  [#7](https://github.com/mcflugen/landlab-parallel/issues/7).
