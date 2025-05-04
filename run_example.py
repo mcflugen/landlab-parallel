@@ -127,6 +127,7 @@ def run(shape):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("size", type=int, help="Size of the grid")
+    parser.add_argument("--mode", choices=("raster", "odd-r"), help="Grid type")
 
     args = parser.parse_args()
 
