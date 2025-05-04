@@ -7,3 +7,5 @@
   [#2](https://github.com/mcflugen/landlab-parallel/issues/2).
 - Added new function, `pvtu_dump`, that compbines a set of *vtu* files
   [#3](https://github.com/mcflugen/landlab-parallel/issues/3).
+- Fixed an issue where the lower-left corner of the tiles were not be calculated
+  correctly [#4](https://github.com/mcflugen/landlab-parallel/issues/4).
