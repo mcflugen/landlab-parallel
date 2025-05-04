@@ -91,13 +91,13 @@ def run(shape, mode="odd-r", seed=None):
     grid.add_field("topographic__elevation", elevation, at="node")
     grid.add_field("uplift_rate", uplift_rate, at="node")
 
+    uplift = Uplift(grid)
     fa = FlowAccumulator(grid)
     sp = StreamPowerEroder(grid, K_sp=0.0001)
     ld = LinearDiffuser(grid, linear_diffusivity=0.01)
 
     for _ in range(2000):
-        grid.at_node["topographic__elevation"] += uplift
-
+        uplift.run_one_step(250.0)
         ld.run_one_step(250.0)
         fa.run_one_step()
         sp.run_one_step(250.0)
