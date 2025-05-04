@@ -128,10 +128,13 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("size", type=int, help="Size of the grid")
     parser.add_argument("--mode", choices=("raster", "odd-r"), help="Grid type")
+    parser.add_argument(
+        "--seed", type=int, default=None, help="Random seed for initial elevations"
+    )
 
     args = parser.parse_args()
 
-    return run((args.size, 2 * args.size), args.mode)
+    return run((args.size, 2 * args.size), args.mode, args.seed)
 
 
 def print_output(array):
