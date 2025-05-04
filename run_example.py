@@ -15,7 +15,7 @@ from landlab_parallel import pvtu_dump
 from landlab_parallel import vtu_dump
 
 
-def run(shape, mode):
+def run(shape, mode="odd-r", seed=None):
     from mpi4py import MPI
 
     comm = MPI.COMM_WORLD
@@ -25,7 +25,8 @@ def run(shape, mode):
     mode = "odd-r"
 
     if RANK == 0:
-        elevation = np.random.rand(np.prod(shape)).reshape(shape)
+        rng = np.random.default_rng(seed=seed)
+        elevation = rng.uniform(size=shape)
         uplift = np.zeros_like(elevation)
         uplift[1:-1, 1:-1] = 0.1
 
