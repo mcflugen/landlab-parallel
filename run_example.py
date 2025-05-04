@@ -105,10 +105,6 @@ def run(shape, mode="odd-r", seed=None):
                 (grid.at_node["topographic__elevation"], grid.at_node["drainage_area"]),
             )
 
-        send_receive_ghost_data(
-            comm, my_ghosts, their_ghosts, grid.at_node["topographic__elevation"]
-        )
-
     with open(f"{RANK}.vtu", "w") as fp:
         fp.write(vtu_dump(grid, z_coord="topographic__elevation"))
 
