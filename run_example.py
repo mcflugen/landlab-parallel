@@ -125,6 +125,17 @@ def run(shape, mode="odd-r", seed=None):
     return 0
 
 
+class Uplift:
+    def __init__(self, grid, uplift_rate=1.0):
+        self.grid = grid
+
+    def run_one_step(self, dt):
+        z = self.grid.at_node["topographic__elevation"]
+        dz_dt = self.grid.at_node["uplift_rate"]
+
+        z += dz_dt * dt
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("size", type=int, help="Size of the grid")
