@@ -321,7 +321,7 @@ def create_landlab_grid(
 ):
     partition = np.asarray(partition)
 
-    if mode == "d4":
+    if mode in ("d4", "raster"):
         grid = landlab.RasterModelGrid(
             partition.shape,
             xy_spacing=spacing,

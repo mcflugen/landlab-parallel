@@ -22,6 +22,8 @@ def run(shape):
     RANK = comm.Get_rank()
     n_partitions = comm.Get_size()
 
+    mode = "odd-r"
+
     if RANK == 0:
         elevation = np.random.rand(np.prod(shape)).reshape(shape)
         uplift = np.zeros_like(elevation)
@@ -68,12 +70,21 @@ def run(shape):
     my_ghosts = transform_values(my_ghosts, my_tile.global_to_local)
     their_ghosts = transform_values(their_ghosts, my_tile.global_to_local)
 
+    if mode == "odd-r":
+        shift = 0.5 if offset[0] % 2 else 0.0
+        xy_of_lower_left = (
+            (offset[1] + shift) * 100.0,
+            offset[0] * 100.0 * np.sqrt(3.0) / 2.0,
+        )
+    elif mode == "raster":
+        xy_of_lower_left = (offset[1] * 100.0, offset[0] * 100.0)
+
     grid = create_landlab_grid(
         partition,
-        xy_of_lower_left=offset,
+        xy_of_lower_left=xy_of_lower_left,
         spacing=100.0,
         id_=RANK,
-        mode="odd-r",
+        mode=mode,
     )
 
     grid.at_node["topographic__elevation"] = elevation.reshape(-1)
