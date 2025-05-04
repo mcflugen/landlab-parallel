@@ -88,8 +88,8 @@ def run(shape, mode="odd-r", seed=None):
         mode=mode,
     )
 
-    grid.at_node["topographic__elevation"] = elevation.reshape(-1)
-    uplift.shape = (-1,)
+    grid.add_field("topographic__elevation", elevation, at="node")
+    grid.add_field("uplift_rate", uplift_rate, at="node")
 
     fa = FlowAccumulator(grid)
     sp = StreamPowerEroder(grid, K_sp=0.0001)
