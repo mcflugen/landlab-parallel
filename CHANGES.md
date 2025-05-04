@@ -22,3 +22,5 @@
   [#8](https://github.com/mcflugen/landlab-parallel/issues/8).
 - Fixed a bug where the mode passed from the cli was ignored
   [#9](https://github.com/mcflugen/landlab-parallel/issues/9).
+- Mask-out data at closed nodes when writing to *vtu*
+  [#10](https://github.com/mcflugen/landlab-parallel/issues/10).

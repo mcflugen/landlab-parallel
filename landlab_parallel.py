@@ -592,6 +592,18 @@ def _get_neighbor_ghosts(partitions, rank: int = 0):
 
 
 def vtu_dump(grid, stream=None, include="*", exclude=None, z_coord=0.0, at="node"):
+    mask = (grid.status_at_node == grid.BC_NODE_IS_CLOSED) | (
+        grid.status_at_node == grid.BC_NODE_IS_FIXED_VALUE
+    )
+    saved_fields = {
+        name: grid.at_node[name]
+        for name in grid.at_node
+        if np.issubdtype(grid.at_node[name].dtype, np.floating)
+    }
+    for name, array in saved_fields.items():
+        grid.at_node[name] = array.copy()
+        grid.at_node[name][mask] = np.nan
+
     with tempfile.NamedTemporaryFile(suffix=".vtk", mode="w+", delete=False) as tmp:
         tmp.write(
             landlab.io.legacy_vtk.dump(
@@ -600,6 +612,9 @@ def vtu_dump(grid, stream=None, include="*", exclude=None, z_coord=0.0, at="node
         )
         tmp.flush()
         mesh = meshio.read(tmp.name)
+
+    for name, array in saved_fields.items():
+        grid.at_node[name] = array
 
     with tempfile.NamedTemporaryFile(suffix=".vtu", mode="r+", delete=False) as tmp:
         tmp.close()
