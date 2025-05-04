@@ -201,23 +201,24 @@ def send_receive_ghost_ids(comm, my_ghosts: dict[int, ArrayLike]):
     return their_ghosts
 
 
-def send_receive_ghost_data(comm, my_ghosts, their_ghosts, data: NDArray):
+def send_receive_ghost_data(comm, my_ghosts, their_ghosts, data: tuple[NDArray, ...]):
     my_rank = comm.Get_rank()
 
     for rank in my_ghosts:
-        data_to_send = data[their_ghosts[rank]]
-        data_to_receive = np.empty(len(my_ghosts[rank]), dtype=float)
+        for values in data:
+            data_to_send = values[their_ghosts[rank]]
+            data_to_receive = np.empty(len(my_ghosts[rank]), dtype=float)
 
-        comm.Sendrecv(
-            data_to_send,
-            rank,
-            sendtag=my_rank,
-            recvbuf=data_to_receive,
-            source=rank,
-            recvtag=rank,
-        )
+            comm.Sendrecv(
+                data_to_send,
+                rank,
+                sendtag=my_rank,
+                recvbuf=data_to_receive,
+                source=rank,
+                recvtag=rank,
+            )
 
-        data[my_ghosts[rank]] = data_to_receive
+            values[my_ghosts[rank]] = data_to_receive
 
 
 if __name__ == "__main__":
