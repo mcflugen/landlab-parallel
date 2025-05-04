@@ -96,11 +96,16 @@ def run(shape, mode="odd-r", seed=None):
     sp = StreamPowerEroder(grid, K_sp=0.0001)
     ld = LinearDiffuser(grid, linear_diffusivity=0.01)
 
+    components = [(uplift, (250.0,)), (ld, (250.0,)), (fa, ()), (sp, (250.0,))]
     for _ in range(2000):
-        uplift.run_one_step(250.0)
-        ld.run_one_step(250.0)
-        fa.run_one_step()
-        sp.run_one_step(250.0)
+        for component, args in components:
+            component.run_one_step(*args)
+            send_receive_ghost_data(
+                comm,
+                my_ghosts,
+                their_ghosts,
+                (grid.at_node["topographic__elevation"], grid.at_node["drainage_area"]),
+            )
 
         send_receive_ghost_data(
             comm, my_ghosts, their_ghosts, grid.at_node["topographic__elevation"]
@@ -201,23 +206,24 @@ def send_receive_ghost_ids(comm, my_ghosts: dict[int, ArrayLike]):
     return their_ghosts
 
 
-def send_receive_ghost_data(comm, my_ghosts, their_ghosts, data: NDArray):
+def send_receive_ghost_data(comm, my_ghosts, their_ghosts, data: tuple[NDArray, ...]):
     my_rank = comm.Get_rank()
 
     for rank in my_ghosts:
-        data_to_send = data[their_ghosts[rank]]
-        data_to_receive = np.empty(len(my_ghosts[rank]), dtype=float)
+        for values in data:
+            data_to_send = values[their_ghosts[rank]]
+            data_to_receive = np.empty(len(my_ghosts[rank]), dtype=float)
 
-        comm.Sendrecv(
-            data_to_send,
-            rank,
-            sendtag=my_rank,
-            recvbuf=data_to_receive,
-            source=rank,
-            recvtag=rank,
-        )
+            comm.Sendrecv(
+                data_to_send,
+                rank,
+                sendtag=my_rank,
+                recvbuf=data_to_receive,
+                source=rank,
+                recvtag=rank,
+            )
 
-        data[my_ghosts[rank]] = data_to_receive
+            values[my_ghosts[rank]] = data_to_receive
 
 
 if __name__ == "__main__":

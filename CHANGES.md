@@ -17,3 +17,6 @@
   [#6](https://github.com/mcflugen/landlab-parallel/issues/6).
 - Added a new component, `Uplift`, that uplifts the landscape
   [#7](https://github.com/mcflugen/landlab-parallel/issues/7).
+- Modified the time loop to exchange ghost node data after every component is
+  updated and also added drainage area to the list of data fields that are exchanged
+  [#8](https://github.com/mcflugen/landlab-parallel/issues/8).
