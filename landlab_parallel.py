@@ -186,6 +186,34 @@ class D4Tiler(Tiler):
         return _get_d4_adjacency(shape)
 
 
+class OddRTiler(Tiler):
+    def get_tile_bounds(
+        self, partitions, tile: int, halo: int = 0
+    ) -> list[tuple[int, int]]:
+        partitions = np.asarray(partitions)
+
+        if partitions.ndim != 2:
+            raise ValueError(
+                f"{partitions.shape!r}: invalid number of dimensions"
+                f" ({partitions.ndim != 2})"
+            )
+
+        indices = np.nonzero(partitions == tile)
+
+        start_row = int(max(indices[0].min() - halo, 0))
+        stop_row = int(min(indices[0].max() + halo + 1, partitions.shape[0]))
+        start_col = int(max(indices[1].min() - halo, 0))
+        stop_col = int(min(indices[1].max() + halo + 1, partitions.shape[1]))
+
+        if start_row % 2 != 0:
+            start_row -= 1
+        return [(start_row, stop_row), (start_col, stop_col)]
+
+    @classmethod
+    def get_adjacency(cls, shape: tuple[int, int]) -> list[int]:
+        return _get_odd_r_adjacency(shape)
+
+
 class IndexMapper:
     def __init__(self, shape, submatrix=None):
         self._shape = tuple(shape)
