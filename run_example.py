@@ -8,7 +8,8 @@ from landlab.components import StreamPowerEroder
 from numpy.typing import ArrayLike
 from numpy.typing import NDArray
 
-from landlab_parallel import RasterTiler
+from landlab_parallel import D4Tiler
+from landlab_parallel import OddRTiler
 from landlab_parallel import Tile
 from landlab_parallel import create_landlab_grid
 from landlab_parallel import pvtu_dump
@@ -28,10 +29,13 @@ def run(shape, mode="odd-r", seed=None):
         uplift_rate = np.zeros_like(elevation)
         uplift_rate[1:-1, 1:-1] = 0.004
 
-        tiler = RasterTiler.from_pymetis(shape, n_partitions, mode=mode)
+        if mode == "odd-r":
+            tiler = OddRTiler.from_pymetis(shape, n_partitions)
+        else:
+            tiler = D4Tiler.from_pymetis(shape, n_partitions)
 
         for _rank in range(1, n_partitions):
-            tile = tiler.get_tile(_rank)
+            tile = tiler.getvalue(_rank)
             offset = np.asarray([s.start for s in tiler.tiles[_rank]], dtype="i")
 
             comm.Send(np.array(tile.shape, dtype="i"), dest=_rank, tag=0)
@@ -40,7 +44,7 @@ def run(shape, mode="odd-r", seed=None):
             comm.Send(tiler.scatter(elevation)[_rank].flatten(), dest=_rank, tag=3)
             comm.Send(tiler.scatter(uplift_rate)[_rank].flatten(), dest=_rank, tag=4)
 
-        tile = tiler.get_tile(RANK)
+        tile = tiler.getvalue(RANK)
         tile_shape = np.array(tile.shape, dtype="i")
         offset = np.asarray([s.start for s in tiler.tiles[RANK]], dtype="i")
         partition = np.asarray(tile, dtype=int)
