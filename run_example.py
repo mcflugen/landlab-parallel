@@ -132,7 +132,7 @@ class Uplift:
         z = self.grid.at_node["topographic__elevation"]
         dz_dt = self.grid.at_node["uplift_rate"]
 
-        z += dz_dt * dt
+        z[self.grid.core_nodes] += dz_dt[self.grid.core_nodes] * dt
 
 
 def main():
