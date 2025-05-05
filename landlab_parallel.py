@@ -602,9 +602,7 @@ def _get_neighbor_ghosts(partitions, rank: int = 0):
 
 
 def vtu_dump(grid, stream=None, include="*", exclude=None, z_coord=0.0, at="node"):
-    mask = (grid.status_at_node == grid.BC_NODE_IS_CLOSED) | (
-        grid.status_at_node == grid.BC_NODE_IS_FIXED_VALUE
-    )
+    mask = grid.status_at_node == grid.BC_NODE_IS_CLOSED
     saved_fields = {
         name: grid.at_node[name]
         for name in grid.at_node
