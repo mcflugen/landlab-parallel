@@ -232,14 +232,18 @@ def _get_d4_adjacency(shape: tuple[int]):
         constant_values=-1,
     )
 
-    d4_neighbors = np.stack([
-        nodes[1:-1, 2:],
-        nodes[2:, 1:-1],
-        nodes[1:-1, :-2],
-        nodes[:-2, 1:-1],
-    ], axis=-1)
+    d4_neighbors = np.stack(
+        [
+            nodes[1:-1, 2:],
+            nodes[2:, 1:-1],
+            nodes[1:-1, :-2],
+            nodes[:-2, 1:-1],
+        ],
+        axis=-1,
+    )
 
-    return [list(int(x) for x in row[row != -1]) for row in d4_neighbors.reshape(-1, 4)]
+    return [[int(x) for x in row[row != -1]] for row in d4_neighbors.reshape(-1, 4)]
+
 
     nodes = np.pad(
         np.arange(shape[0] * shape[1]).reshape(shape),
