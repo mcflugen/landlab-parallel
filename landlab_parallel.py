@@ -47,22 +47,12 @@ class Tile:
         self._data = np.asarray(data)
         self._id = id_
 
-        if mode == "raster":
-            get_ghosts = _get_neighbor_ghosts
-        elif mode == "odd-r":
-            get_ghosts = _odd_r_ghosts
-        else:
-            raise ValueError(f"{mode!r}: unknown mode, not one of 'odd-r', 'raster'")
-
         self._index_mapper = IndexMapper(
             self._shape,
             submatrix=[(o, o + data.shape[dim]) for dim, o in enumerate(offset)],
         )
 
-        self._ghost_nodes = {
-            rank: np.asarray(nodes, dtype="i")
-            for rank, nodes in get_ghosts(data, rank=self._id).items()
-        }
+        self._ghost_nodes = get_my_ghost_nodes(data, my_id=id_, mode=mode)
 
     def local_to_global(self, indices):
         return self._index_mapper.local_to_global(indices)
