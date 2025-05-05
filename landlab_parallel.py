@@ -143,9 +143,11 @@ class RasterTiler:
                [0, 0, 0, 0, 0]])
         """
         if mode == "odd-r":
-            get_adjacency = _hex_grid_adjacency_odd_r
-        elif mode == "raster":
-            get_adjacency = _get_adjacency_list
+            get_adjacency = _get_odd_r_adjacency
+        elif mode in ("d4", "raster"):
+            get_adjacency = _get_d4_adjacency
+        elif mode == "d8":
+            get_adjacency = _get_d8_adjacency
         else:
             raise ValueError(f"{mode!r}: unknown mode, not one of 'odd-r', 'raster'")
 
