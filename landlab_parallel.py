@@ -270,7 +270,7 @@ def _get_d8_adjacency(shape: tuple[int]):
     return [[int(x) for x in row[row != -1]] for row in d8_neighbors.reshape(-1, 8)]
 
 
-def _hex_grid_adjacency_odd_r(shape: tuple[int, int]):
+def _get_odd_r_adjacency(shape: tuple[int, int]):
     nrows, ncols = shape
     rows, cols = np.meshgrid(np.arange(nrows), np.arange(ncols), indexing="ij")
     node_ids = rows * ncols + cols
