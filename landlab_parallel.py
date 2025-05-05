@@ -245,22 +245,29 @@ def _get_d4_adjacency(shape: tuple[int]):
     return [[int(x) for x in row[row != -1]] for row in d4_neighbors.reshape(-1, 4)]
 
 
+def _get_d8_adjacency(shape: tuple[int]):
     nodes = np.pad(
         np.arange(shape[0] * shape[1]).reshape(shape),
-        pad_width=((1, 1), (1, 1)),
+        pad_width=1,
         mode="constant",
         constant_values=-1,
     )
 
-    return [
-        [int(n) for n in neighbors if n != -1]
-        for neighbors in zip(
-            nodes[1:-1, 2:].flat,
-            nodes[2:, 1:-1].flat,
-            nodes[1:-1, :-2].flat,
-            nodes[:-2, 1:-1].flat,
-        )
-    ]
+    d8_neighbors = np.stack(
+        [
+            nodes[1:-1, 2:],
+            nodes[2:, 2:],
+            nodes[2:, 1:-1],
+            nodes[2:, :-2],
+            nodes[1:-1, :-2],
+            nodes[:-2, :-2],
+            nodes[:-2, 1:-1],
+            nodes[:-2, 2:],
+        ],
+        axis=-1,
+    )
+
+    return [[int(x) for x in row[row != -1]] for row in d8_neighbors.reshape(-1, 8)]
 
 
 def _hex_grid_adjacency_odd_r(shape: tuple[int, int]):
