@@ -373,11 +373,21 @@ def _submatrix_bounds(
 def create_landlab_grid(
     partition: ArrayLike,
     spacing: float | tuple[float, float] = 1.0,
-    xy_of_lower_left: tuple[float] | float = 0.0,
+    ij_of_lower_left: tuple[int] = (0, 0),
     id_: int = 0,
     mode="raster",
 ):
     is_their_node = np.asarray(partition) != id_
+    ij_of_lower_left = np.asarray(ij_of_lower_left)
+
+    if mode == "odd-r":
+        shift = 0.5 if ij_of_lower_left[0] % 2 else 0.0
+        xy_of_lower_left = (
+            (ij_of_lower_left[1] + shift) * spacing,
+            ij_of_lower_left[0] * spacing * np.sqrt(3.0) / 2.0,
+        )
+    elif mode == "raster":
+        xy_of_lower_left = ij_of_lower_left * spacing
 
     if mode in ("d4", "raster"):
         grid = landlab.RasterModelGrid(
