@@ -26,3 +26,5 @@
   [#10](https://github.com/mcflugen/landlab-parallel/issues/10).
 - Fixed an issue where ghost nodes were not being set correctly for some hex grids.
   [#12](https://github.com/mcflugen/landlab-parallel/issues/12).
+- Added support for creating d8-style tiles, which connect diagonal nodes
+  [#13](https://github.com/mcflugen/landlab-parallel/issues/13).

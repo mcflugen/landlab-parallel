@@ -20,6 +20,8 @@ def get_my_ghost_nodes(data, my_id=0, mode="d4"):
         get_ghosts = _d4_ghosts
     elif mode == "odd-r":
         get_ghosts = _odd_r_ghosts
+    elif mode == "d8":
+        get_ghosts = _d8_ghosts
     else:
         raise ValueError(f"{mode}: mode not understood")
 
@@ -143,9 +145,11 @@ class RasterTiler:
                [0, 0, 0, 0, 0]])
         """
         if mode == "odd-r":
-            get_adjacency = _hex_grid_adjacency_odd_r
-        elif mode == "raster":
-            get_adjacency = _get_adjacency_list
+            get_adjacency = _get_odd_r_adjacency
+        elif mode in ("d4", "raster"):
+            get_adjacency = _get_d4_adjacency
+        elif mode == "d8":
+            get_adjacency = _get_d8_adjacency
         else:
             raise ValueError(f"{mode!r}: unknown mode, not one of 'odd-r', 'raster'")
 
@@ -224,27 +228,53 @@ class IndexMapper:
         )
 
 
-def _get_adjacency_list(shape: tuple[int]):
-
+def _get_d4_adjacency(shape: tuple[int]):
     nodes = np.pad(
         np.arange(shape[0] * shape[1]).reshape(shape),
-        pad_width=((1, 1), (1, 1)),
+        pad_width=1,
         mode="constant",
         constant_values=-1,
     )
 
-    return [
-        [int(n) for n in neighbors if n != -1]
-        for neighbors in zip(
-            nodes[1:-1, 2:].flat,
-            nodes[2:, 1:-1].flat,
-            nodes[1:-1, :-2].flat,
-            nodes[:-2, 1:-1].flat,
-        )
-    ]
+    d4_neighbors = np.stack(
+        [
+            nodes[1:-1, 2:],
+            nodes[2:, 1:-1],
+            nodes[1:-1, :-2],
+            nodes[:-2, 1:-1],
+        ],
+        axis=-1,
+    )
+
+    return [[int(x) for x in row[row != -1]] for row in d4_neighbors.reshape(-1, 4)]
 
 
-def _hex_grid_adjacency_odd_r(shape: tuple[int, int]):
+def _get_d8_adjacency(shape: tuple[int]):
+    nodes = np.pad(
+        np.arange(shape[0] * shape[1]).reshape(shape),
+        pad_width=1,
+        mode="constant",
+        constant_values=-1,
+    )
+
+    d8_neighbors = np.stack(
+        [
+            nodes[1:-1, 2:],
+            nodes[2:, 2:],
+            nodes[2:, 1:-1],
+            nodes[2:, :-2],
+            nodes[1:-1, :-2],
+            nodes[:-2, :-2],
+            nodes[:-2, 1:-1],
+            nodes[:-2, 2:],
+        ],
+        axis=-1,
+    )
+
+    return [[int(x) for x in row[row != -1]] for row in d8_neighbors.reshape(-1, 8)]
+
+
+def _get_odd_r_adjacency(shape: tuple[int, int]):
     nrows, ncols = shape
     rows, cols = np.meshgrid(np.arange(nrows), np.arange(ncols), indexing="ij")
     node_ids = rows * ncols + cols
