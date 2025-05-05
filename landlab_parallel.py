@@ -327,30 +327,32 @@ def create_landlab_grid(
     id_: int = 0,
     mode="raster",
 ):
-    partition = np.asarray(partition)
+    is_their_node = np.asarray(partition) != id_
 
     if mode in ("d4", "raster"):
         grid = landlab.RasterModelGrid(
-            partition.shape,
+            is_their_node.shape,
             xy_spacing=spacing,
             xy_of_lower_left=xy_of_lower_left,
         )
         get_ghosts = _d4_ghosts
     elif mode == "odd-r":
         grid = landlab.HexModelGrid(
-            partition.shape,
+            is_their_node.shape,
             spacing=spacing,
             xy_of_lower_left=xy_of_lower_left,
             node_layout="rect",
         )
         get_ghosts = _odd_r_ghosts
 
-    my_nodes = partition == id_
-    ghosts = get_ghosts(my_nodes).reshape(-1)
-    my_nodes.shape = (-1,)
+    is_ghost_node = get_ghosts(~is_their_node).reshape(-1)
+    is_their_node.shape = (-1,)
 
-    grid.status_at_node[~my_nodes] = landlab.NodeStatus.CLOSED
-    grid.status_at_node[~my_nodes & ghosts] = landlab.NodeStatus.FIXED_VALUE
+    grid.status_at_node[is_their_node] = np.where(
+        is_ghost_node[is_their_node],
+        landlab.NodeStatus.FIXED_VALUE,
+        landlab.NodeStatus.CLOSED,
+    )
 
     return grid
 
