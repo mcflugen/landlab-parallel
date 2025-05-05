@@ -116,11 +116,74 @@ class Tiler(Mapping, ABC):
 
         return cls(np.asarray(partitions).reshape(shape))
 
-    def local_to_global(self, indices: ArrayLike, tile: int) -> ArrayLike:
-        return self._index_mapper[tile].local_to_global(indices)
 
-    def empty(self, tile: int, dtype=float):
-        return np.empty([s.stop - s.start for s in self.tiles[tile]], dtype=dtype)
+class D4Tiler(Tiler):
+    """
+    Examples
+    --------
+    >>> from landlab_parallel import D4Tiler
+
+    >>> partitions = [
+    ...     [0, 0, 1, 1, 1],
+    ...     [0, 0, 0, 1, 1],
+    ...     [0, 2, 2, 1, 1],
+    ...     [3, 3, 2, 2, 1],
+    ...     [3, 3, 2, 2, 2],
+    ... ]
+    >>> tiler = D4Tiler(partitions)
+    >>> tiler.n_tiles
+    4
+    >>> tiler.get_tile(0)
+    array([[0, 0, 1, 1],
+           [0, 0, 0, 1],
+           [0, 2, 2, 1],
+           [3, 3, 2, 2]])
+
+    >>> data = [
+    ...     [0.0, 1.0, 2.0, 3.0, 4.0],
+    ...     [5.0, 6.0, 7.0, 8.0, 9.0],
+    ...     [10.0, 11.0, 12.0, 13.0, 14.0],
+    ...     [15.0, 16.0, 17.0, 18.0, 19.0],
+    ...     [20.0, 21.0, 22.0, 23.0, 24.0],
+    ... ]
+    >>> tile_data = tiler.scatter(data)
+    >>> tile_data[1]
+    array([[ 1.,  2.,  3.,  4.],
+           [ 6.,  7.,  8.,  9.],
+           [11., 12., 13., 14.],
+           [16., 17., 18., 19.],
+           [21., 22., 23., 24.]])
+
+    >>> for array in tile_data.values():
+    ...     array /= 10.0
+    ...
+    >>> tile_data[1] *= 10.0
+    >>> tiler.gather(tile_data)
+    array([[ 0. ,  0.1,  2. ,  3. ,  4. ],
+           [ 0.5,  0.6,  0.7,  8. ,  9. ],
+           [ 1. ,  1.1,  1.2, 13. , 14. ],
+           [ 1.5,  1.6,  1.7,  1.8, 19. ],
+           [ 2. ,  2.1,  2.2,  2.3,  2.4]])
+    """
+
+    def get_tile_bounds(
+        self, partitions, tile: int, halo: int = 0
+    ) -> list[tuple[int, int]]:
+        partitions = np.asarray(partitions)
+
+        indices = np.nonzero(partitions == tile)
+
+        return [
+            (
+                int(max(indices[dim].min() - halo, 0)),
+                int(min(indices[dim].max() + halo + 1, partitions.shape[dim])),
+            )
+            for dim in range(partitions.ndim)
+        ]
+
+    @classmethod
+    def get_adjacency(cls, shape: tuple[int, int]) -> list[int]:
+        return _get_d4_adjacency(shape)
 
 
 class IndexMapper:
