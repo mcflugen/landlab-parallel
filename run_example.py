@@ -61,7 +61,7 @@ def run(shape, mode="odd-r", seed=None):
         comm.Recv(elevation.reshape(-1), source=0, tag=3)
         comm.Recv(uplift_rate.reshape(-1), source=0, tag=4)
 
-    my_tile = Tile(offset, shape, partition, id_=RANK)
+    my_tile = Tile(offset, shape, partition, id_=RANK, mode=mode)
 
     my_ghosts = transform_values(my_tile._ghost_nodes, my_tile.local_to_global)
     their_ghosts = send_receive_ghost_ids(comm, my_ghosts)
