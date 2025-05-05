@@ -24,3 +24,5 @@
   [#9](https://github.com/mcflugen/landlab-parallel/issues/9).
 - Mask-out data at closed nodes when writing to *vtu*
   [#10](https://github.com/mcflugen/landlab-parallel/issues/10).
+- Fixed an issue where ghost nodes were not being set correctly for some hex grids.
+  [#12](https://github.com/mcflugen/landlab-parallel/issues/12).

@@ -15,6 +15,24 @@ from numpy.typing import NDArray
 __version__ = "0.1.0"
 
 
+def get_my_ghost_nodes(data, my_id=0, mode="d4"):
+    if mode in ("d4", "raster"):
+        get_ghosts = _d4_ghosts
+    elif mode == "odd-r":
+        get_ghosts = _odd_r_ghosts
+    else:
+        raise ValueError(f"{mode}: mode not understood")
+
+    is_my_node = data == my_id
+    is_ghost = get_ghosts(is_my_node)
+    neighbors = np.unique(data[~is_my_node & is_ghost])
+
+    return {
+        rank: np.ravel_multi_index(np.nonzero(is_ghost & (data == rank)), data.shape)
+        for rank in neighbors
+    }
+
+
 class Tile:
     def __init__(
         self,
@@ -29,22 +47,12 @@ class Tile:
         self._data = np.asarray(data)
         self._id = id_
 
-        if mode == "raster":
-            get_ghosts = _get_neighbor_ghosts
-        elif mode == "odd-r":
-            get_ghosts = _odd_r_ghosts
-        else:
-            raise ValueError(f"{mode!r}: unknown mode, not one of 'odd-r', 'raster'")
-
         self._index_mapper = IndexMapper(
             self._shape,
             submatrix=[(o, o + data.shape[dim]) for dim, o in enumerate(offset)],
         )
 
-        self._ghost_nodes = {
-            rank: np.asarray(nodes, dtype="i")
-            for rank, nodes in get_ghosts(data, rank=self._id).items()
-        }
+        self._ghost_nodes = get_my_ghost_nodes(data, my_id=id_, mode=mode)
 
     def local_to_global(self, indices):
         return self._index_mapper.local_to_global(indices)
@@ -319,30 +327,32 @@ def create_landlab_grid(
     id_: int = 0,
     mode="raster",
 ):
-    partition = np.asarray(partition)
+    is_their_node = np.asarray(partition) != id_
 
     if mode in ("d4", "raster"):
         grid = landlab.RasterModelGrid(
-            partition.shape,
+            is_their_node.shape,
             xy_spacing=spacing,
             xy_of_lower_left=xy_of_lower_left,
         )
         get_ghosts = _d4_ghosts
     elif mode == "odd-r":
         grid = landlab.HexModelGrid(
-            partition.shape,
+            is_their_node.shape,
             spacing=spacing,
             xy_of_lower_left=xy_of_lower_left,
             node_layout="rect",
         )
         get_ghosts = _odd_r_ghosts
 
-    my_nodes = partition == id_
-    ghosts = get_ghosts(my_nodes).reshape(-1)
-    my_nodes.shape = (-1,)
+    is_ghost_node = get_ghosts(~is_their_node).reshape(-1)
+    is_their_node.shape = (-1,)
 
-    grid.status_at_node[~my_nodes] = landlab.NodeStatus.CLOSED
-    grid.status_at_node[~my_nodes & ghosts] = landlab.NodeStatus.FIXED_VALUE
+    grid.status_at_node[is_their_node] = np.where(
+        is_ghost_node[is_their_node],
+        landlab.NodeStatus.FIXED_VALUE,
+        landlab.NodeStatus.CLOSED,
+    )
 
     return grid
 
@@ -592,9 +602,7 @@ def _get_neighbor_ghosts(partitions, rank: int = 0):
 
 
 def vtu_dump(grid, stream=None, include="*", exclude=None, z_coord=0.0, at="node"):
-    mask = (grid.status_at_node == grid.BC_NODE_IS_CLOSED) | (
-        grid.status_at_node == grid.BC_NODE_IS_FIXED_VALUE
-    )
+    mask = grid.status_at_node == grid.BC_NODE_IS_CLOSED
     saved_fields = {
         name: grid.at_node[name]
         for name in grid.at_node

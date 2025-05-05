@@ -26,11 +26,9 @@ def run(shape, mode="odd-r", seed=None):
         rng = np.random.default_rng(seed=seed)
         elevation = rng.uniform(size=shape)
         uplift_rate = np.zeros_like(elevation)
-        uplift_rate[1:-1, 1:-1] = 0.0004
+        uplift_rate[1:-1, 1:-1] = 0.004
 
         tiler = RasterTiler.from_pymetis(shape, n_partitions, mode=mode)
-
-        # print_output(tiler._partitions)
 
         for _rank in range(1, n_partitions):
             tile = tiler.get_tile(_rank)
@@ -61,7 +59,7 @@ def run(shape, mode="odd-r", seed=None):
         comm.Recv(elevation.reshape(-1), source=0, tag=3)
         comm.Recv(uplift_rate.reshape(-1), source=0, tag=4)
 
-    my_tile = Tile(offset, shape, partition, id_=RANK)
+    my_tile = Tile(offset, shape, partition, id_=RANK, mode=mode)
 
     my_ghosts = transform_values(my_tile._ghost_nodes, my_tile.local_to_global)
     their_ghosts = send_receive_ghost_ids(comm, my_ghosts)
@@ -132,7 +130,7 @@ class Uplift:
         z = self.grid.at_node["topographic__elevation"]
         dz_dt = self.grid.at_node["uplift_rate"]
 
-        z += dz_dt * dt
+        z[self.grid.core_nodes] += dz_dt[self.grid.core_nodes] * dt
 
 
 def main():
