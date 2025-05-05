@@ -26,11 +26,9 @@ def run(shape, mode="odd-r", seed=None):
         rng = np.random.default_rng(seed=seed)
         elevation = rng.uniform(size=shape)
         uplift_rate = np.zeros_like(elevation)
-        uplift_rate[1:-1, 1:-1] = 0.0004
+        uplift_rate[1:-1, 1:-1] = 0.004
 
         tiler = RasterTiler.from_pymetis(shape, n_partitions, mode=mode)
-
-        # print_output(tiler._partitions)
 
         for _rank in range(1, n_partitions):
             tile = tiler.get_tile(_rank)
