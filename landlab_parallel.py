@@ -20,6 +20,8 @@ def get_my_ghost_nodes(data, my_id=0, mode="d4"):
         get_ghosts = _d4_ghosts
     elif mode == "odd-r":
         get_ghosts = _odd_r_ghosts
+    elif mode == "d8":
+        get_ghosts = _d8_ghosts
     else:
         raise ValueError(f"{mode}: mode not understood")
 
