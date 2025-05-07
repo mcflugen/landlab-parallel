@@ -8,7 +8,8 @@ from landlab.components import StreamPowerEroder
 from numpy.typing import ArrayLike
 from numpy.typing import NDArray
 
-from landlab_parallel import RasterTiler
+from landlab_parallel import D4Tiler
+from landlab_parallel import OddRTiler
 from landlab_parallel import Tile
 from landlab_parallel import create_landlab_grid
 from landlab_parallel import pvtu_dump
@@ -28,29 +29,32 @@ def run(shape, mode="odd-r", seed=None):
         uplift_rate = np.zeros_like(elevation)
         uplift_rate[1:-1, 1:-1] = 0.004
 
-        tiler = RasterTiler.from_pymetis(shape, n_partitions, mode=mode)
+        if mode == "odd-r":
+            tiler = OddRTiler.from_pymetis(shape, n_partitions)
+        else:
+            tiler = D4Tiler.from_pymetis(shape, n_partitions)
 
         for _rank in range(1, n_partitions):
-            tile = tiler.get_tile(_rank)
-            offset = np.asarray([s.start for s in tiler.tiles[_rank]], dtype="i")
+            ij_of_lower_left = np.asarray([s.start for s in tiler[_rank]], dtype="i")
+            tile = tiler.getvalue(_rank)
 
             comm.Send(np.array(tile.shape, dtype="i"), dest=_rank, tag=0)
-            comm.Send(offset, dest=_rank, tag=1)
+            comm.Send(ij_of_lower_left, dest=_rank, tag=1)
             comm.Send(tile.flatten(), dest=_rank, tag=2)
             comm.Send(tiler.scatter(elevation)[_rank].flatten(), dest=_rank, tag=3)
             comm.Send(tiler.scatter(uplift_rate)[_rank].flatten(), dest=_rank, tag=4)
 
-        tile = tiler.get_tile(RANK)
+        tile = tiler.getvalue(RANK)
         tile_shape = np.array(tile.shape, dtype="i")
-        offset = np.asarray([s.start for s in tiler.tiles[RANK]], dtype="i")
+        ij_of_lower_left = np.asarray([s.start for s in tiler[RANK]], dtype="i")
         partition = np.asarray(tile, dtype=int)
         elevation = tiler.scatter(elevation)[RANK]
         uplift_rate = tiler.scatter(uplift_rate)[RANK]
     else:
         tile_shape = np.empty(2, dtype="i")
-        offset = np.empty(2, dtype="i")
+        ij_of_lower_left = np.empty(2, dtype="i")
         comm.Recv(tile_shape, source=0, tag=0)
-        comm.Recv(offset, source=0, tag=1)
+        comm.Recv(ij_of_lower_left, source=0, tag=1)
 
         partition = np.empty(tile_shape, dtype=int)
         elevation = np.empty(tile_shape, dtype=float)
@@ -59,7 +63,7 @@ def run(shape, mode="odd-r", seed=None):
         comm.Recv(elevation.reshape(-1), source=0, tag=3)
         comm.Recv(uplift_rate.reshape(-1), source=0, tag=4)
 
-    my_tile = Tile(offset, shape, partition, id_=RANK, mode=mode)
+    my_tile = Tile(ij_of_lower_left, shape, partition, id_=RANK, mode=mode)
 
     my_ghosts = transform_values(my_tile._ghost_nodes, my_tile.local_to_global)
     their_ghosts = send_receive_ghost_ids(comm, my_ghosts)
@@ -67,19 +71,10 @@ def run(shape, mode="odd-r", seed=None):
     my_ghosts = transform_values(my_ghosts, my_tile.global_to_local)
     their_ghosts = transform_values(their_ghosts, my_tile.global_to_local)
 
-    if mode == "odd-r":
-        shift = 0.5 if offset[0] % 2 else 0.0
-        xy_of_lower_left = (
-            (offset[1] + shift) * 100.0,
-            offset[0] * 100.0 * np.sqrt(3.0) / 2.0,
-        )
-    elif mode == "raster":
-        xy_of_lower_left = (offset[1] * 100.0, offset[0] * 100.0)
-
     grid = create_landlab_grid(
         partition,
-        xy_of_lower_left=xy_of_lower_left,
         spacing=100.0,
+        ij_of_lower_left=ij_of_lower_left,
         id_=RANK,
         mode=mode,
     )

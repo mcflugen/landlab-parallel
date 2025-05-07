@@ -3,6 +3,8 @@ from __future__ import annotations
 import os
 import tempfile
 import xml.etree.ElementTree as ET
+from abc import ABC
+from collections.abc import Mapping
 from xml.dom import minidom
 
 import landlab
@@ -63,113 +65,37 @@ class Tile:
         return self._index_mapper.global_to_local(indices)
 
 
-class RasterTiler:
+class Tiler(Mapping, ABC):
     def __init__(self, partitions: ArrayLike):
-        """
-        Examples
-        --------
-        >>> from landlab_parallel import RasterTiler
-
-        >>> partitions = [
-        ...     [0, 0, 1, 1, 1],
-        ...     [0, 0, 0, 1, 1],
-        ...     [0, 2, 2, 1, 1],
-        ...     [3, 3, 2, 2, 1],
-        ...     [3, 3, 2, 2, 2],
-        ... ]
-        >>> tiler = RasterTiler(partitions)
-        >>> tiler.n_tiles
-        4
-        >>> tiler.get_tile(0)
-        array([[0, 0, 1, 1],
-               [0, 0, 0, 1],
-               [0, 2, 2, 1],
-               [3, 3, 2, 2]])
-
-        >>> data = [
-        ...     [0.0, 1.0, 2.0, 3.0, 4.0],
-        ...     [5.0, 6.0, 7.0, 8.0, 9.0],
-        ...     [10.0, 11.0, 12.0, 13.0, 14.0],
-        ...     [15.0, 16.0, 17.0, 18.0, 19.0],
-        ...     [20.0, 21.0, 22.0, 23.0, 24.0],
-        ... ]
-        >>> tile_data = tiler.scatter(data)
-        >>> tile_data[1]
-        array([[ 1.,  2.,  3.,  4.],
-               [ 6.,  7.,  8.,  9.],
-               [11., 12., 13., 14.],
-               [16., 17., 18., 19.],
-               [21., 22., 23., 24.]])
-
-        >>> for array in tile_data.values():
-        ...     array /= 10.0
-        ...
-        >>> tile_data[1] *= 10.0
-        >>> tiler.gather(tile_data)
-        array([[ 0. ,  0.1,  2. ,  3. ,  4. ],
-               [ 0.5,  0.6,  0.7,  8. ,  9. ],
-               [ 1. ,  1.1,  1.2, 13. , 14. ],
-               [ 1.5,  1.6,  1.7,  1.8, 19. ],
-               [ 2. ,  2.1,  2.2,  2.3,  2.4]])
-        """
         self._partitions = np.asarray(partitions)
         self._shape = self._partitions.shape
 
-        self.tiles = {
+        self._tiles = {
             int(tile): tuple(
                 slice(*bound)
-                for bound in _submatrix_bounds(self._partitions, tile, halo=1)
+                for bound in self.get_tile_bounds(self._partitions, tile, halo=1)
             )
             for tile in np.unique(self._partitions)
         }
 
-        self._index_mapper = {
-            IndexMapper(
-                self._shape, submatrix=[(s.start, s.stop) for s in self.tiles[tile]]
-            )
-            for tile in self.tiles
-        }
+    def __getitem__(self, key: int) -> tuple[slice, ...]:
+        return self._tiles[key]
 
-    @classmethod
-    def from_pymetis(cls, shape: tuple[int, ...], n_tiles: int, mode="raster"):
-        """
-        Examples
-        --------
-        >>> from landlab_parallel import RasterTiler
-        >>> tiler = RasterTiler.from_pymetis((5, 5), 3)
-        >>> tiler._partitions
-        array([[2, 2, 2, 1, 1],
-               [2, 2, 2, 1, 1],
-               [2, 2, 2, 1, 1],
-               [0, 0, 0, 1, 1],
-               [0, 0, 0, 0, 0]])
-        """
-        if mode == "odd-r":
-            get_adjacency = _get_odd_r_adjacency
-        elif mode in ("d4", "raster"):
-            get_adjacency = _get_d4_adjacency
-        elif mode == "d8":
-            get_adjacency = _get_d8_adjacency
-        else:
-            raise ValueError(f"{mode!r}: unknown mode, not one of 'odd-r', 'raster'")
+    def __iter__(self) -> tuple[slice, ...]:
+        return iter(self._tiles)
 
-        _, partitions = pymetis.part_graph(
-            n_tiles, adjacency=list(get_adjacency(shape))
-        )
-        partitions = np.asarray(partitions).reshape(shape)
+    def __len__(self) -> int:
+        return len(self._tiles)
 
-        return cls(partitions)
+    def getvalue(self, tile: int):
+        return self._partitions[*self[tile]]
 
-    @property
-    def n_tiles(self):
-        return len(self.tiles)
-
-    def get_tile(self, tile: int) -> NDArray[int]:
-        return self._partitions[*self.tiles[tile]]
+    def get_tile_bounds(self, partitions, tile: int, halo=0):
+        raise NotImplementedError()
 
     def scatter(self, data: ArrayLike) -> dict[int, ArrayLike]:
         data = np.asarray(data).reshape(self._shape)
-        return {tile: data[*bounds].copy() for tile, bounds in self.tiles.items()}
+        return {tile: data[*bounds].copy() for tile, bounds in self.items()}
 
     def gather(
         self, tile_data: dict[int, ArrayLike], out: NDArray | None = None
@@ -178,20 +104,114 @@ class RasterTiler:
             out = np.empty(self._shape)
 
         for tile, data in tile_data.items():
-            array = out[*self.tiles[tile]]
-            mask = self._partitions[*self.tiles[tile]] == tile
+            array = out[*self[tile]]
+            mask = self.getvalue(tile) == tile
             array[mask] = data.reshape(mask.shape)[mask]
 
         return out
 
-    def global_to_local(self, indices: ArrayLike, tile: int) -> ArrayLike:
-        return self._index_mapper[tile].global_to_local(indices)
+    @classmethod
+    def from_pymetis(cls, shape: tuple[int, int], n_tiles: int):
+        _, partitions = pymetis.part_graph(n_tiles, adjacency=cls.get_adjacency(shape))
 
-    def local_to_global(self, indices: ArrayLike, tile: int) -> ArrayLike:
-        return self._index_mapper[tile].local_to_global(indices)
+        return cls(np.asarray(partitions).reshape(shape))
 
-    def empty(self, tile: int, dtype=float):
-        return np.empty([s.stop - s.start for s in self.tiles[tile]], dtype=dtype)
+
+class D4Tiler(Tiler):
+    """
+    Examples
+    --------
+    >>> from landlab_parallel import D4Tiler
+
+    >>> partitions = [
+    ...     [0, 0, 1, 1, 1],
+    ...     [0, 0, 0, 1, 1],
+    ...     [0, 2, 2, 1, 1],
+    ...     [3, 3, 2, 2, 1],
+    ...     [3, 3, 2, 2, 2],
+    ... ]
+    >>> tiler = D4Tiler(partitions)
+    >>> tiler.n_tiles
+    4
+    >>> tiler.get_tile(0)
+    array([[0, 0, 1, 1],
+           [0, 0, 0, 1],
+           [0, 2, 2, 1],
+           [3, 3, 2, 2]])
+
+    >>> data = [
+    ...     [0.0, 1.0, 2.0, 3.0, 4.0],
+    ...     [5.0, 6.0, 7.0, 8.0, 9.0],
+    ...     [10.0, 11.0, 12.0, 13.0, 14.0],
+    ...     [15.0, 16.0, 17.0, 18.0, 19.0],
+    ...     [20.0, 21.0, 22.0, 23.0, 24.0],
+    ... ]
+    >>> tile_data = tiler.scatter(data)
+    >>> tile_data[1]
+    array([[ 1.,  2.,  3.,  4.],
+           [ 6.,  7.,  8.,  9.],
+           [11., 12., 13., 14.],
+           [16., 17., 18., 19.],
+           [21., 22., 23., 24.]])
+
+    >>> for array in tile_data.values():
+    ...     array /= 10.0
+    ...
+    >>> tile_data[1] *= 10.0
+    >>> tiler.gather(tile_data)
+    array([[ 0. ,  0.1,  2. ,  3. ,  4. ],
+           [ 0.5,  0.6,  0.7,  8. ,  9. ],
+           [ 1. ,  1.1,  1.2, 13. , 14. ],
+           [ 1.5,  1.6,  1.7,  1.8, 19. ],
+           [ 2. ,  2.1,  2.2,  2.3,  2.4]])
+    """
+
+    def get_tile_bounds(
+        self, partitions, tile: int, halo: int = 0
+    ) -> list[tuple[int, int]]:
+        partitions = np.asarray(partitions)
+
+        indices = np.nonzero(partitions == tile)
+
+        return [
+            (
+                int(max(indices[dim].min() - halo, 0)),
+                int(min(indices[dim].max() + halo + 1, partitions.shape[dim])),
+            )
+            for dim in range(partitions.ndim)
+        ]
+
+    @classmethod
+    def get_adjacency(cls, shape: tuple[int, int]) -> list[int]:
+        return _get_d4_adjacency(shape)
+
+
+class OddRTiler(Tiler):
+    def get_tile_bounds(
+        self, partitions, tile: int, halo: int = 0
+    ) -> list[tuple[int, int]]:
+        partitions = np.asarray(partitions)
+
+        if partitions.ndim != 2:
+            raise ValueError(
+                f"{partitions.shape!r}: invalid number of dimensions"
+                f" ({partitions.ndim != 2})"
+            )
+
+        indices = np.nonzero(partitions == tile)
+
+        start_row = int(max(indices[0].min() - halo, 0))
+        stop_row = int(min(indices[0].max() + halo + 1, partitions.shape[0]))
+        start_col = int(max(indices[1].min() - halo, 0))
+        stop_col = int(min(indices[1].max() + halo + 1, partitions.shape[1]))
+
+        if start_row % 2 != 0:
+            start_row -= 1
+        return [(start_row, stop_row), (start_col, stop_col)]
+
+    @classmethod
+    def get_adjacency(cls, shape: tuple[int, int]) -> list[int]:
+        return _get_odd_r_adjacency(shape)
 
 
 class IndexMapper:
@@ -353,11 +373,21 @@ def _submatrix_bounds(
 def create_landlab_grid(
     partition: ArrayLike,
     spacing: float | tuple[float, float] = 1.0,
-    xy_of_lower_left: tuple[float] | float = 0.0,
+    ij_of_lower_left: tuple[int] = (0, 0),
     id_: int = 0,
     mode="raster",
 ):
     is_their_node = np.asarray(partition) != id_
+    ij_of_lower_left = np.asarray(ij_of_lower_left)
+
+    if mode == "odd-r":
+        shift = 0.5 if ij_of_lower_left[0] % 2 else 0.0
+        xy_of_lower_left = (
+            (ij_of_lower_left[1] + shift) * spacing,
+            ij_of_lower_left[0] * spacing * np.sqrt(3.0) / 2.0,
+        )
+    elif mode == "raster":
+        xy_of_lower_left = ij_of_lower_left * spacing
 
     if mode in ("d4", "raster"):
         grid = landlab.RasterModelGrid(
