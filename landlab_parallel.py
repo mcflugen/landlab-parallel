@@ -523,6 +523,18 @@ class IndexMapper:
 
 
 def _get_d4_adjacency(shape: tuple[int, int]) -> list[list[int]]:
+    """Return D4 adjacency list for a raster grid.
+
+    Parameters
+    ----------
+    shape : tuple of int
+        Number of rows and columns in the grid.
+
+    Returns
+    -------
+    list[list[int]]
+        Adjacency list using D4 connectivity.
+    """
     nodes = np.pad(
         np.arange(shape[0] * shape[1]).reshape(shape),
         pad_width=1,
