@@ -133,7 +133,16 @@ class Tile:
 
 
 class Tiler(Mapping, ABC):
+    """Base class for tiling utilities."""
+
     def __init__(self, partitions: ArrayLike):
+        """Initialize the tiler.
+
+        Parameters
+        ----------
+        partitions : array_like
+            Partition matrix describing ownership of each node.
+        """
         self._partitions = np.asarray(partitions)
         self._shape = self._partitions.shape
 
@@ -146,29 +155,109 @@ class Tiler(Mapping, ABC):
         }
 
     def __getitem__(self, key: int) -> tuple[slice, ...]:
+        """Return slice bounds for ``key``.
+
+        Parameters
+        ----------
+        key : int
+            Identifier of the tile.
+
+        Returns
+        -------
+        tuple of slice
+            Bounds of the tile within the full array.
+        """
         return self._tiles[key]
 
     def __iter__(self) -> Iterator[int]:
+        """Iterate over tiles.
+
+        Returns
+        -------
+        iterator of int
+            Iterator over tile ids.
+        """
         return iter(self._tiles)
 
     def __len__(self) -> int:
+        """Number of tiles.
+
+        Returns
+        -------
+        int
+            The number of tiles in the tiler.
+        """
         return len(self._tiles)
 
     def getvalue(self, tile: int) -> NDArray:
+        """Return the partition slice for ``tile``.
+
+        Parameters
+        ----------
+        tile : int
+            Identifier of the tile to extract.
+
+        Returns
+        -------
+        ndarray
+            Slice of the partition array corresponding to ``tile``.
+        """
         return self._partitions[*self[tile]]
 
     def get_tile_bounds(
         self, partitions: ArrayLike, tile: int, halo: int = 0
     ) -> list[tuple[int, int]]:
+        """Return bounds of ``tile`` with optional halo.
+
+        Parameters
+        ----------
+        partitions : array_like
+            Partition matrix describing ownership of each node.
+        tile : int
+            Tile identifier.
+        halo : int, optional
+            Width of the halo to add around the tile.
+
+        Returns
+        -------
+        list of tuple of int
+            Start and stop indices for each dimension.
+        """
         raise NotImplementedError()
 
     def scatter(self, data: ArrayLike) -> dict[int, NDArray]:
+        """Split an array by tile.
+
+        Parameters
+        ----------
+        data : array_like
+            Array of values associated with the full domain.
+
+        Returns
+        -------
+        dict[int, ndarray]
+            Mapping of tile id to a copy of the tile's data.
+        """
         data = np.asarray(data).reshape(self._shape)
         return {tile: data[*bounds].copy() for tile, bounds in self.items()}
 
     def gather(
         self, tile_data: dict[int, NDArray], out: NDArray | None = None
     ) -> NDArray:
+        """Reassemble an array from tile data.
+
+        Parameters
+        ----------
+        tile_data : dict[int, array_like]
+            Mapping of tile id to data arrays.
+        out : ndarray, optional
+            Array to fill with gathered data.
+
+        Returns
+        -------
+        ndarray
+            Array assembled from the provided tile data.
+        """
         if out is None:
             out = np.empty(self._shape)
 
@@ -181,6 +270,20 @@ class Tiler(Mapping, ABC):
 
     @classmethod
     def from_pymetis(cls, shape: tuple[int, int], n_tiles: int) -> Self:
+        """Partition ``shape`` into ``n_tiles`` using PyMetis.
+
+        Parameters
+        ----------
+        shape : tuple of int
+            Shape of the grid to partition.
+        n_tiles : int
+            Desired number of tiles.
+
+        Returns
+        -------
+        Tiler
+            New tiler instance built from the generated partitions.
+        """
         _, partitions = pymetis.part_graph(n_tiles, adjacency=cls.get_adjacency(shape))
 
         return cls(np.asarray(partitions).reshape(shape))
