@@ -593,6 +593,18 @@ def _get_d8_adjacency(shape: tuple[int, int]) -> list[list[int]]:
 
 
 def _get_odd_r_adjacency(shape: tuple[int, int]) -> list[list[int]]:
+    """Return adjacency list for a hex grid with odd-r layout.
+
+    Parameters
+    ----------
+    shape : tuple of int
+        Number of rows and columns in the grid.
+
+    Returns
+    -------
+    list[list[int]]
+        Adjacency list using odd-r connectivity.
+    """
     nrows, ncols = shape
     rows, cols = np.meshgrid(np.arange(nrows), np.arange(ncols), indexing="ij")
     node_ids = rows * ncols + cols
