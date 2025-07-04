@@ -24,6 +24,22 @@ __version__ = "0.1.0"
 def get_my_ghost_nodes(
     data: ArrayLike, my_id: int = 0, mode: str = "d4"
 ) -> dict[int, NDArray[np.int_]]:
+    """Return ghost node indices for a given partition.
+
+    Parameters
+    ----------
+    data : array_like
+        Partition matrix describing ownership of each node.
+    my_id : int, optional
+        Identifier of the local partition.
+    mode : {"d4", "d8", "odd-r", "raster"}, optional
+        Connectivity scheme used to determine neighbors.
+
+    Returns
+    -------
+    dict[int, ndarray]
+        Mapping of neighbor rank to the indices of ghost nodes.
+    """
     if mode in ("d4", "raster"):
         get_ghosts = _d4_ghosts
     elif mode == "odd-r":
