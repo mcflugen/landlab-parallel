@@ -556,6 +556,18 @@ def _get_d4_adjacency(shape: tuple[int, int]) -> list[list[int]]:
 
 
 def _get_d8_adjacency(shape: tuple[int, int]) -> list[list[int]]:
+    """Return D8 adjacency list for a raster grid.
+
+    Parameters
+    ----------
+    shape : tuple of int
+        Number of rows and columns in the grid.
+
+    Returns
+    -------
+    list[list[int]]
+        Adjacency list using D8 connectivity.
+    """
     nodes = np.pad(
         np.arange(shape[0] * shape[1]).reshape(shape),
         pad_width=1,
