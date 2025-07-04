@@ -294,7 +294,8 @@ class Tiler(Mapping, ABC):
 
 
 class D4Tiler(Tiler):
-    """
+    """Tiler for raster grids with D4 connectivity.
+
     Examples
     --------
     >>> from landlab_parallel import D4Tiler
@@ -345,6 +346,22 @@ class D4Tiler(Tiler):
     def get_tile_bounds(
         self, partitions: ArrayLike, tile: int, halo: int = 0
     ) -> list[tuple[int, int]]:
+        """Bounds of ``tile`` using D4 connectivity.
+
+        Parameters
+        ----------
+        partitions : array_like
+            Partition matrix describing ownership of each node.
+        tile : int
+            Tile identifier.
+        halo : int, optional
+            Width of the halo to include around the tile.
+
+        Returns
+        -------
+        list of tuple of int
+            Start and stop indices for each dimension.
+        """
         partitions = np.asarray(partitions)
 
         indices = np.nonzero(partitions == tile)
@@ -359,6 +376,18 @@ class D4Tiler(Tiler):
 
     @classmethod
     def get_adjacency(cls, shape: tuple[int, int]) -> list[list[int]]:
+        """Return adjacency list for a D4 grid.
+
+        Parameters
+        ----------
+        shape : tuple of int
+            Shape of the grid.
+
+        Returns
+        -------
+        list[list[int]]
+            Adjacency list using D4 connectivity.
+        """
         return _get_d4_adjacency(shape)
 
 
