@@ -63,6 +63,8 @@ def get_my_ghost_nodes(
 
 
 class Tile:
+    """A single tile of a partitioned grid."""
+
     def __init__(
         self,
         offset: tuple[int, ...],
@@ -71,6 +73,21 @@ class Tile:
         id_: int,
         mode: str = "raster",
     ):
+        """Create a tile.
+
+        Parameters
+        ----------
+        offset : tuple of int
+            Index of the lower-left corner of the tile within the full array.
+        shape : tuple of int
+            Shape of the full domain.
+        data : array_like
+            Partition matrix describing ownership of each node.
+        id_ : int
+            Identifier of the local tile.
+        mode : {"d4", "d8", "odd-r", "raster"}, optional
+            Connectivity scheme used to determine neighbors.
+        """
         self._shape = tuple(shape)
         self._offset = tuple(offset)
         self._data = np.asarray(data)
@@ -84,9 +101,34 @@ class Tile:
         self._ghost_nodes = get_my_ghost_nodes(self._data, my_id=id_, mode=mode)
 
     def local_to_global(self, indices: ArrayLike) -> NDArray[np.int_]:
+        """Convert local node indices to global indices.
+
+        Parameters
+        ----------
+        indices : array_like of int
+            Local indices to convert.
+
+        Returns
+        -------
+        ndarray of int
+            The corresponding global node indices.
+
+        """
         return self._index_mapper.local_to_global(indices)
 
     def global_to_local(self, indices: ArrayLike) -> NDArray[np.int_]:
+        """Convert global node indices to local indices.
+
+        Parameters
+        ----------
+        indices : array_like of int
+            Global indices to convert.
+
+        Returns
+        -------
+        ndarray of int
+            The corresponding local node indices.
+        """
         return self._index_mapper.global_to_local(indices)
 
 
