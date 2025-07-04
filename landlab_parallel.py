@@ -1002,6 +1002,28 @@ def vtu_dump(
     z_coord: float = 0.0,
     at: str = "node",
 ) -> str | None:
+    """Return a VTU representation of a grid.
+
+    Parameters
+    ----------
+    grid : landlab.ModelGrid
+        Grid containing fields to output.
+    stream : file-like object or None, optional
+        Stream to write VTU data to. If ``None`` the string is returned.
+    include : sequence of str or "*", optional
+        Fields to include.
+    exclude : sequence of str or None, optional
+        Fields to exclude.
+    z_coord : float, optional
+        Elevation to use for 2D grids.
+    at : {"node", "cell"}, optional
+        Location of values within the grid.
+
+    Returns
+    -------
+    str or None
+        VTU representation or ``None`` if written to ``stream``.
+    """
     mask = grid.status_at_node == grid.BC_NODE_IS_CLOSED
     saved_fields = {
         name: grid.at_node[name]
