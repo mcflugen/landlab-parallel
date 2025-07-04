@@ -392,9 +392,27 @@ class D4Tiler(Tiler):
 
 
 class OddRTiler(Tiler):
+    """Tiler for hexagonal grids using odd-r layout."""
+
     def get_tile_bounds(
         self, partitions: ArrayLike, tile: int, halo: int = 0
     ) -> list[tuple[int, int]]:
+        """Bounds of ``tile`` for an odd-r grid.
+
+        Parameters
+        ----------
+        partitions : array_like
+            Partition matrix describing ownership of each node.
+        tile : int
+            Tile identifier.
+        halo : int, optional
+            Width of the halo to include around the tile.
+
+        Returns
+        -------
+        list of tuple of int
+            Start and stop indices for each dimension.
+        """
         partitions = np.asarray(partitions)
 
         if partitions.ndim != 2:
@@ -416,6 +434,18 @@ class OddRTiler(Tiler):
 
     @classmethod
     def get_adjacency(cls, shape: tuple[int, int]) -> list[list[int]]:
+        """Return adjacency list for an odd-r grid.
+
+        Parameters
+        ----------
+        shape : tuple of int
+            Shape of the grid.
+
+        Returns
+        -------
+        list[list[int]]
+            Adjacency list using odd-r connectivity.
+        """
         return _get_odd_r_adjacency(shape)
 
 
