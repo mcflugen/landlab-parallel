@@ -1070,6 +1070,20 @@ def vtu_dump(
 
 
 def pvtu_dump(grid: landlab.ModelGrid, vtu_files: Sequence[str] = ()) -> str:
+    """Return a PVTU file referencing multiple VTU files.
+
+    Parameters
+    ----------
+    grid : landlab.ModelGrid
+        Grid from which point fields are derived.
+    vtu_files : sequence of str, optional
+        Paths to VTU files that comprise the full grid.
+
+    Returns
+    -------
+    str
+        XML string describing the parallel unstructured grid.
+    """
     vtkfile = ET.Element(
         "VTKFile", type="PUnstructuredGrid", version="1.0", byte_order="LittleEndian"
     )
