@@ -687,6 +687,26 @@ def create_landlab_grid(
     id_: int = 0,
     mode="raster",
 ) -> landlab.ModelGrid:
+    """Create a Landlab grid from a partition matrix.
+
+    Parameters
+    ----------
+    partition : array_like
+        Partition matrix describing ownership of each node.
+    spacing : float or tuple of float, optional
+        Grid spacing in the x and y directions.
+    ij_of_lower_left : tuple of int, optional
+        Index of the lower-left node of the tile within the full grid.
+    id_ : int, optional
+        Identifier of the local tile.
+    mode : {"raster", "odd-r", "d4"}, optional
+        Grid type describing connectivity.
+
+    Returns
+    -------
+    landlab.ModelGrid
+        The constructed grid with boundary conditions set.
+    """
     is_their_node = np.asarray(partition) != id_
 
     if mode == "odd-r":
