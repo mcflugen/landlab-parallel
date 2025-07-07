@@ -891,8 +891,8 @@ def _odd_r_ghosts(partition: ArrayLike) -> NDArray[np.bool_]:
 
     Parameters
     ----------
-    partition: array_like of int
-        Partition matrix.
+    partition : array_like of int
+        Partition matrix describing ownership of each node.
 
     Returns
     -------
