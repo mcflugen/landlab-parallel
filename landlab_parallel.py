@@ -642,6 +642,20 @@ def _submatrix_bounds(
 ) -> list[tuple[int, int]]:
     """Find the bounds of a submatrix.
 
+    Parameters
+    ----------
+    array : array_like
+        Array to search for the submatrix.
+    value : int or None, optional
+        Value defining the submatrix. If ``None`` any non-zero entry is used.
+    halo : int, optional
+        Number of cells to extend around the submatrix.
+
+    Returns
+    -------
+    list[tuple[int, int]]
+        Start and stop indices for each dimension.
+
     Examples
     --------
     >>> from landlab_parallel import _submatrix_bounds
