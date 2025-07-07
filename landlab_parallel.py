@@ -4,7 +4,9 @@ import os
 import tempfile
 import xml.etree.ElementTree as ET
 from abc import ABC
+from collections.abc import Iterator
 from collections.abc import Mapping
+from typing import Self
 from xml.dom import minidom
 
 import landlab
@@ -86,24 +88,26 @@ class Tiler(Mapping, ABC):
     def __getitem__(self, key: int) -> tuple[slice, ...]:
         return self._tiles[key]
 
-    def __iter__(self) -> tuple[slice, ...]:
+    def __iter__(self) -> Iterator[int]:
         return iter(self._tiles)
 
     def __len__(self) -> int:
         return len(self._tiles)
 
-    def getvalue(self, tile: int):
+    def getvalue(self, tile: int) -> NDArray:
         return self._partitions[*self[tile]]
 
-    def get_tile_bounds(self, partitions, tile: int, halo=0):
+    def get_tile_bounds(
+        self, partitions: ArrayLike, tile: int, halo: int = 0
+    ) -> list[tuple[int, int]]:
         raise NotImplementedError()
 
-    def scatter(self, data: ArrayLike) -> dict[int, ArrayLike]:
+    def scatter(self, data: ArrayLike) -> dict[int, NDArray]:
         data = np.asarray(data).reshape(self._shape)
         return {tile: data[*bounds].copy() for tile, bounds in self.items()}
 
     def gather(
-        self, tile_data: dict[int, ArrayLike], out: NDArray | None = None
+        self, tile_data: dict[int, NDArray], out: NDArray | None = None
     ) -> NDArray:
         if out is None:
             out = np.empty(self._shape)
@@ -116,10 +120,14 @@ class Tiler(Mapping, ABC):
         return out
 
     @classmethod
-    def from_pymetis(cls, shape: tuple[int, int], n_tiles: int):
+    def from_pymetis(cls, shape: tuple[int, int], n_tiles: int) -> Self:
         _, partitions = pymetis.part_graph(n_tiles, adjacency=cls.get_adjacency(shape))
 
         return cls(np.asarray(partitions).reshape(shape))
+
+    @classmethod
+    def get_adjacency(cls, shape: tuple[int, int]) -> list[list[int]]:
+        raise NotImplementedError("get_adjacency")
 
 
 class D4Tiler(Tiler):
