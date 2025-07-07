@@ -17,7 +17,9 @@ from numpy.typing import NDArray
 __version__ = "0.1.0"
 
 
-def get_my_ghost_nodes(data, my_id=0, mode="d4"):
+def get_my_ghost_nodes(
+    data: ArrayLike, my_id: int = 0, mode: str = "d4"
+) -> dict[int, NDArray[np.int_]]:
     if mode in ("d4", "raster"):
         get_ghosts = _d4_ghosts
     elif mode == "odd-r":
@@ -27,12 +29,15 @@ def get_my_ghost_nodes(data, my_id=0, mode="d4"):
     else:
         raise ValueError(f"{mode}: mode not understood")
 
-    is_my_node = data == my_id
+    data_array = np.asarray(data)
+    is_my_node = data_array == my_id
     is_ghost = get_ghosts(is_my_node)
-    neighbors = np.unique(data[~is_my_node & is_ghost])
+    neighbors = np.unique(data_array[~is_my_node & is_ghost])
 
     return {
-        rank: np.ravel_multi_index(np.nonzero(is_ghost & (data == rank)), data.shape)
+        rank: np.ravel_multi_index(
+            np.nonzero(is_ghost & (data_array == rank)), data_array.shape
+        )
         for rank in neighbors
     }
 
