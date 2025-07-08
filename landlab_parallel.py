@@ -347,7 +347,7 @@ def _submatrix_bounds(
     array: ArrayLike,
     value: int | None = None,
     halo: int = 0,
-):
+) -> list[tuple[int, int]]:
     """Find the bounds of a submatrix.
 
     Examples
