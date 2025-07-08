@@ -201,7 +201,7 @@ class D4Tiler(Tiler):
 
 class OddRTiler(Tiler):
     def get_tile_bounds(
-        self, partitions, tile: int, halo: int = 0
+        self, partitions: ArrayLike, tile: int, halo: int = 0
     ) -> list[tuple[int, int]]:
         partitions = np.asarray(partitions)
 
@@ -223,7 +223,7 @@ class OddRTiler(Tiler):
         return [(start_row, stop_row), (start_col, stop_col)]
 
     @classmethod
-    def get_adjacency(cls, shape: tuple[int, int]) -> list[int]:
+    def get_adjacency(cls, shape: tuple[int, int]) -> list[list[int]]:
         return _get_odd_r_adjacency(shape)
 
 
