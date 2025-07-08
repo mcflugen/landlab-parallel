@@ -60,15 +60,15 @@ class Tile:
 
         self._index_mapper = IndexMapper(
             self._shape,
-            submatrix=[(o, o + data.shape[dim]) for dim, o in enumerate(offset)],
+            submatrix=[(o, o + self._data.shape[dim]) for dim, o in enumerate(offset)],
         )
 
-        self._ghost_nodes = get_my_ghost_nodes(data, my_id=id_, mode=mode)
+        self._ghost_nodes = get_my_ghost_nodes(self._data, my_id=id_, mode=mode)
 
-    def local_to_global(self, indices):
+    def local_to_global(self, indices: ArrayLike) -> NDArray[np.int_]:
         return self._index_mapper.local_to_global(indices)
 
-    def global_to_local(self, indices):
+    def global_to_local(self, indices: ArrayLike) -> NDArray[np.int_]:
         return self._index_mapper.global_to_local(indices)
 
 
