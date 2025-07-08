@@ -266,7 +266,7 @@ class IndexMapper:
         )
 
 
-def _get_d4_adjacency(shape: tuple[int]):
+def _get_d4_adjacency(shape: tuple[int, int]) -> list[list[int]]:
     nodes = np.pad(
         np.arange(shape[0] * shape[1]).reshape(shape),
         pad_width=1,
