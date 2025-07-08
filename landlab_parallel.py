@@ -630,7 +630,7 @@ def _odd_r_ghosts(partition: ArrayLike) -> NDArray[np.bool_]:
     return is_ghost
 
 
-def _neighbor_partitions(partitions, rank: int = 0):
+def _neighbor_partitions(partitions: ArrayLike, rank: int = 0) -> NDArray[np.int_]:
     """Get partitions that are neighbors.
 
     Examples
