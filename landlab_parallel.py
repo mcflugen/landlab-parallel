@@ -6,6 +6,7 @@ import xml.etree.ElementTree as ET
 from abc import ABC
 from collections.abc import Iterator
 from collections.abc import Mapping
+from collections.abc import Sequence
 from typing import Self
 from xml.dom import minidom
 
@@ -228,7 +229,11 @@ class OddRTiler(Tiler):
 
 
 class IndexMapper:
-    def __init__(self, shape, submatrix=None):
+    def __init__(
+        self,
+        shape: Sequence[int],
+        submatrix: Sequence[tuple[int, int]] | None = None,
+    ) -> None:
         self._shape = tuple(shape)
         if submatrix is None:
             self._limits = [(0, self._shape[dim]) for dim in range(len(self._shape))]
@@ -243,9 +248,9 @@ class IndexMapper:
         ):
             raise ValueError()
 
-    def local_to_global(self, indices):
+    def local_to_global(self, indices: ArrayLike) -> NDArray[np.int_]:
         coords = np.unravel_index(
-            indices,
+            np.asarray(indices, dtype=int),
             [limit[1] - limit[0] for limit in self._limits],
         )
         return np.ravel_multi_index(
@@ -253,8 +258,8 @@ class IndexMapper:
             self._shape,
         )
 
-    def global_to_local(self, indices):
-        coords = np.unravel_index(indices, self._shape)
+    def global_to_local(self, indices: ArrayLike) -> NDArray[np.int_]:
+        coords = np.unravel_index(np.asarray(indices, dtype=int), self._shape)
         return np.ravel_multi_index(
             [coords[dim] - self._limits[dim][0] for dim in range(len(coords))],
             [limit[1] - limit[0] for limit in self._limits],
