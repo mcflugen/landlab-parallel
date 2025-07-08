@@ -64,3 +64,11 @@ repos:
           .gitignore|
           requirements.in
         )
+
+- repo: https://github.com/pre-commit/mirrors-mypy
+  rev: v1.16.0
+  hooks:
+  - id: mypy
+    language_version: python3.12
+    additional_dependencies: [numpy]
+    files: landlab_parallel\.py$

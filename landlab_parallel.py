@@ -4,7 +4,11 @@ import os
 import tempfile
 import xml.etree.ElementTree as ET
 from abc import ABC
+from collections.abc import Iterator
 from collections.abc import Mapping
+from collections.abc import Sequence
+from typing import IO
+from typing import Self
 from xml.dom import minidom
 
 import landlab
@@ -17,7 +21,9 @@ from numpy.typing import NDArray
 __version__ = "0.1.0"
 
 
-def get_my_ghost_nodes(data, my_id=0, mode="d4"):
+def get_my_ghost_nodes(
+    data: ArrayLike, my_id: int = 0, mode: str = "d4"
+) -> dict[int, NDArray[np.int_]]:
     if mode in ("d4", "raster"):
         get_ghosts = _d4_ghosts
     elif mode == "odd-r":
@@ -27,12 +33,15 @@ def get_my_ghost_nodes(data, my_id=0, mode="d4"):
     else:
         raise ValueError(f"{mode}: mode not understood")
 
-    is_my_node = data == my_id
+    data_array = np.asarray(data)
+    is_my_node = data_array == my_id
     is_ghost = get_ghosts(is_my_node)
-    neighbors = np.unique(data[~is_my_node & is_ghost])
+    neighbors = np.unique(data_array[~is_my_node & is_ghost])
 
     return {
-        rank: np.ravel_multi_index(np.nonzero(is_ghost & (data == rank)), data.shape)
+        rank: np.ravel_multi_index(
+            np.nonzero(is_ghost & (data_array == rank)), data_array.shape
+        )
         for rank in neighbors
     }
 
@@ -53,15 +62,15 @@ class Tile:
 
         self._index_mapper = IndexMapper(
             self._shape,
-            submatrix=[(o, o + data.shape[dim]) for dim, o in enumerate(offset)],
+            submatrix=[(o, o + self._data.shape[dim]) for dim, o in enumerate(offset)],
         )
 
-        self._ghost_nodes = get_my_ghost_nodes(data, my_id=id_, mode=mode)
+        self._ghost_nodes = get_my_ghost_nodes(self._data, my_id=id_, mode=mode)
 
-    def local_to_global(self, indices):
+    def local_to_global(self, indices: ArrayLike) -> NDArray[np.int_]:
         return self._index_mapper.local_to_global(indices)
 
-    def global_to_local(self, indices):
+    def global_to_local(self, indices: ArrayLike) -> NDArray[np.int_]:
         return self._index_mapper.global_to_local(indices)
 
 
@@ -81,24 +90,26 @@ class Tiler(Mapping, ABC):
     def __getitem__(self, key: int) -> tuple[slice, ...]:
         return self._tiles[key]
 
-    def __iter__(self) -> tuple[slice, ...]:
+    def __iter__(self) -> Iterator[int]:
         return iter(self._tiles)
 
     def __len__(self) -> int:
         return len(self._tiles)
 
-    def getvalue(self, tile: int):
+    def getvalue(self, tile: int) -> NDArray:
         return self._partitions[*self[tile]]
 
-    def get_tile_bounds(self, partitions, tile: int, halo=0):
+    def get_tile_bounds(
+        self, partitions: ArrayLike, tile: int, halo: int = 0
+    ) -> list[tuple[int, int]]:
         raise NotImplementedError()
 
-    def scatter(self, data: ArrayLike) -> dict[int, ArrayLike]:
+    def scatter(self, data: ArrayLike) -> dict[int, NDArray]:
         data = np.asarray(data).reshape(self._shape)
         return {tile: data[*bounds].copy() for tile, bounds in self.items()}
 
     def gather(
-        self, tile_data: dict[int, ArrayLike], out: NDArray | None = None
+        self, tile_data: dict[int, NDArray], out: NDArray | None = None
     ) -> NDArray:
         if out is None:
             out = np.empty(self._shape)
@@ -111,10 +122,14 @@ class Tiler(Mapping, ABC):
         return out
 
     @classmethod
-    def from_pymetis(cls, shape: tuple[int, int], n_tiles: int):
+    def from_pymetis(cls, shape: tuple[int, int], n_tiles: int) -> Self:
         _, partitions = pymetis.part_graph(n_tiles, adjacency=cls.get_adjacency(shape))
 
         return cls(np.asarray(partitions).reshape(shape))
+
+    @classmethod
+    def get_adjacency(cls, shape: tuple[int, int]) -> list[list[int]]:
+        raise NotImplementedError("get_adjacency")
 
 
 class D4Tiler(Tiler):
@@ -167,7 +182,7 @@ class D4Tiler(Tiler):
     """
 
     def get_tile_bounds(
-        self, partitions, tile: int, halo: int = 0
+        self, partitions: ArrayLike, tile: int, halo: int = 0
     ) -> list[tuple[int, int]]:
         partitions = np.asarray(partitions)
 
@@ -182,13 +197,13 @@ class D4Tiler(Tiler):
         ]
 
     @classmethod
-    def get_adjacency(cls, shape: tuple[int, int]) -> list[int]:
+    def get_adjacency(cls, shape: tuple[int, int]) -> list[list[int]]:
         return _get_d4_adjacency(shape)
 
 
 class OddRTiler(Tiler):
     def get_tile_bounds(
-        self, partitions, tile: int, halo: int = 0
+        self, partitions: ArrayLike, tile: int, halo: int = 0
     ) -> list[tuple[int, int]]:
         partitions = np.asarray(partitions)
 
@@ -210,12 +225,16 @@ class OddRTiler(Tiler):
         return [(start_row, stop_row), (start_col, stop_col)]
 
     @classmethod
-    def get_adjacency(cls, shape: tuple[int, int]) -> list[int]:
+    def get_adjacency(cls, shape: tuple[int, int]) -> list[list[int]]:
         return _get_odd_r_adjacency(shape)
 
 
 class IndexMapper:
-    def __init__(self, shape, submatrix=None):
+    def __init__(
+        self,
+        shape: Sequence[int],
+        submatrix: Sequence[tuple[int, int]] | None = None,
+    ) -> None:
         self._shape = tuple(shape)
         if submatrix is None:
             self._limits = [(0, self._shape[dim]) for dim in range(len(self._shape))]
@@ -230,9 +249,9 @@ class IndexMapper:
         ):
             raise ValueError()
 
-    def local_to_global(self, indices):
+    def local_to_global(self, indices: ArrayLike) -> NDArray[np.int_]:
         coords = np.unravel_index(
-            indices,
+            np.asarray(indices, dtype=int),
             [limit[1] - limit[0] for limit in self._limits],
         )
         return np.ravel_multi_index(
@@ -240,15 +259,15 @@ class IndexMapper:
             self._shape,
         )
 
-    def global_to_local(self, indices):
-        coords = np.unravel_index(indices, self._shape)
+    def global_to_local(self, indices: ArrayLike) -> NDArray[np.int_]:
+        coords = np.unravel_index(np.asarray(indices, dtype=int), self._shape)
         return np.ravel_multi_index(
             [coords[dim] - self._limits[dim][0] for dim in range(len(coords))],
             [limit[1] - limit[0] for limit in self._limits],
         )
 
 
-def _get_d4_adjacency(shape: tuple[int]):
+def _get_d4_adjacency(shape: tuple[int, int]) -> list[list[int]]:
     nodes = np.pad(
         np.arange(shape[0] * shape[1]).reshape(shape),
         pad_width=1,
@@ -269,7 +288,7 @@ def _get_d4_adjacency(shape: tuple[int]):
     return [[int(x) for x in row[row != -1]] for row in d4_neighbors.reshape(-1, 4)]
 
 
-def _get_d8_adjacency(shape: tuple[int]):
+def _get_d8_adjacency(shape: tuple[int, int]) -> list[list[int]]:
     nodes = np.pad(
         np.arange(shape[0] * shape[1]).reshape(shape),
         pad_width=1,
@@ -294,7 +313,7 @@ def _get_d8_adjacency(shape: tuple[int]):
     return [[int(x) for x in row[row != -1]] for row in d8_neighbors.reshape(-1, 8)]
 
 
-def _get_odd_r_adjacency(shape: tuple[int, int]):
+def _get_odd_r_adjacency(shape: tuple[int, int]) -> list[list[int]]:
     nrows, ncols = shape
     rows, cols = np.meshgrid(np.arange(nrows), np.arange(ncols), indexing="ij")
     node_ids = rows * ncols + cols
@@ -302,7 +321,7 @@ def _get_odd_r_adjacency(shape: tuple[int, int]):
     even_offsets = np.array([[0, 1], [1, 0], [1, -1], [0, -1], [-1, -1], [-1, 0]])
     odd_offsets = np.array([[0, 1], [1, 1], [1, 0], [0, -1], [-1, 0], [-1, 1]])
 
-    adjacency = [[] for _ in range(nrows * ncols)]
+    adjacency: list[list[int]] = [[] for _ in range(nrows * ncols)]
 
     for parity, offsets in enumerate([even_offsets, odd_offsets]):
         parity_mask = rows % 2 == parity
@@ -329,7 +348,7 @@ def _submatrix_bounds(
     array: ArrayLike,
     value: int | None = None,
     halo: int = 0,
-):
+) -> list[tuple[int, int]]:
     """Find the bounds of a submatrix.
 
     Examples
@@ -373,21 +392,22 @@ def _submatrix_bounds(
 def create_landlab_grid(
     partition: ArrayLike,
     spacing: float | tuple[float, float] = 1.0,
-    ij_of_lower_left: tuple[int] = (0, 0),
+    ij_of_lower_left: tuple[int, int] = (0, 0),
     id_: int = 0,
     mode="raster",
-):
+) -> landlab.ModelGrid:
     is_their_node = np.asarray(partition) != id_
-    ij_of_lower_left = np.asarray(ij_of_lower_left)
 
     if mode == "odd-r":
-        shift = 0.5 if ij_of_lower_left[0] % 2 else 0.0
+        if not isinstance(spacing, float):
+            raise ValueError("spacing must be scalar for odd-r layout")
+        shift: float = 0.5 if ij_of_lower_left[0] % 2 else 0.0
         xy_of_lower_left = (
             (ij_of_lower_left[1] + shift) * spacing,
             ij_of_lower_left[0] * spacing * np.sqrt(3.0) / 2.0,
         )
     elif mode == "raster":
-        xy_of_lower_left = ij_of_lower_left * spacing
+        xy_of_lower_left = tuple(np.multiply(ij_of_lower_left, spacing))
 
     if mode in ("d4", "raster"):
         grid = landlab.RasterModelGrid(
@@ -417,7 +437,7 @@ def create_landlab_grid(
     return grid
 
 
-def _d4_ghosts(partition: ArrayLike):
+def _d4_ghosts(partition: ArrayLike) -> NDArray[np.bool_]:
     """Identify nodes that are ghost nodes.
 
     Parameters
@@ -475,7 +495,7 @@ def _d4_ghosts(partition: ArrayLike):
     return (core != right) | (core != top) | (core != left) | (core != bottom)
 
 
-def _d8_ghosts(partition: ArrayLike):
+def _d8_ghosts(partition: ArrayLike) -> NDArray[np.bool_]:
     """Identify nodes that are ghost nodes, considering diagonals.
 
     Parameters
@@ -541,7 +561,7 @@ def _d8_ghosts(partition: ArrayLike):
     return np.any(core != neighbors, axis=0)
 
 
-def _odd_r_ghosts(partition: ArrayLike):
+def _odd_r_ghosts(partition: ArrayLike) -> NDArray[np.bool_]:
     """Identify nodes that are ghost nodes on an odd-r layout.
 
     Parameters
@@ -611,7 +631,7 @@ def _odd_r_ghosts(partition: ArrayLike):
     return is_ghost
 
 
-def _neighbor_partitions(partitions, rank: int = 0):
+def _neighbor_partitions(partitions: ArrayLike, rank: int = 0) -> NDArray[np.int_]:
     """Get partitions that are neighbors.
 
     Examples
@@ -634,7 +654,9 @@ def _neighbor_partitions(partitions, rank: int = 0):
     return np.unique(partitions[_d4_ghosts(is_my_node) & ~is_my_node])
 
 
-def _get_neighbor_ghosts(partitions, rank: int = 0):
+def _get_neighbor_ghosts(
+    partitions: ArrayLike, rank: int = 0
+) -> dict[int, NDArray[np.int_]]:
     """
     Examples
     --------
@@ -661,7 +683,14 @@ def _get_neighbor_ghosts(partitions, rank: int = 0):
     }
 
 
-def vtu_dump(grid, stream=None, include="*", exclude=None, z_coord=0.0, at="node"):
+def vtu_dump(
+    grid: landlab.ModelGrid,
+    stream: IO[str] | None = None,
+    include: str = "*",
+    exclude: Sequence[str] | None = None,
+    z_coord: float = 0.0,
+    at: str = "node",
+) -> str | None:
     mask = grid.status_at_node == grid.BC_NODE_IS_CLOSED
     saved_fields = {
         name: grid.at_node[name]
@@ -704,9 +733,10 @@ def vtu_dump(grid, stream=None, include="*", exclude=None, z_coord=0.0, at="node
         return content
     else:
         stream.write(content)
+        return None
 
 
-def pvtu_dump(grid, vtu_files=()):
+def pvtu_dump(grid: landlab.ModelGrid, vtu_files: Sequence[str] = ()) -> str:
     vtkfile = ET.Element(
         "VTKFile", type="PUnstructuredGrid", version="1.0", byte_order="LittleEndian"
     )
@@ -729,6 +759,9 @@ def pvtu_dump(grid, vtu_files=()):
 
     tree = ET.ElementTree(vtkfile)
 
-    parsed = minidom.parseString(ET.tostring(tree.getroot()))
+    root = tree.getroot()
+    if root is None:
+        raise RuntimeError("tree has no root")
+    parsed = minidom.parseString(ET.tostring(root))
 
     return parsed.toprettyxml(indent="  ")
