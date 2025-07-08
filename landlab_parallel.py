@@ -736,7 +736,7 @@ def vtu_dump(
         return None
 
 
-def pvtu_dump(grid, vtu_files=()):
+def pvtu_dump(grid: landlab.ModelGrid, vtu_files: Sequence[str] = ()) -> str:
     vtkfile = ET.Element(
         "VTKFile", type="PUnstructuredGrid", version="1.0", byte_order="LittleEndian"
     )
@@ -759,6 +759,9 @@ def pvtu_dump(grid, vtu_files=()):
 
     tree = ET.ElementTree(vtkfile)
 
-    parsed = minidom.parseString(ET.tostring(tree.getroot()))
+    root = tree.getroot()
+    if root is None:
+        raise RuntimeError("tree has no root")
+    parsed = minidom.parseString(ET.tostring(root))
 
     return parsed.toprettyxml(indent="  ")
