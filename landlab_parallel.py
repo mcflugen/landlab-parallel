@@ -979,35 +979,6 @@ def _neighbor_partitions(partitions: ArrayLike, rank: int = 0) -> NDArray[np.int
     return np.unique(partitions[_d4_ghosts(is_my_node) & ~is_my_node])
 
 
-def _get_neighbor_ghosts(
-    partitions: ArrayLike, rank: int = 0
-) -> dict[int, NDArray[np.int_]]:
-    """
-    Examples
-    --------
-    >>> from landlab_parallel import _get_neighbor_ghosts
-    >>> partitions = [
-    ...     [0, 0, 1, 1, 1],
-    ...     [0, 0, 0, 1, 1],
-    ...     [0, 2, 2, 1, 1],
-    ...     [3, 3, 2, 2, 1],
-    ...     [3, 3, 2, 2, 2],
-    ... ]
-    >>> _get_neighbor_ghosts(partitions, rank=1)
-    """
-    partitions = np.asarray(partitions)
-
-    neighbors = _neighbor_partitions(partitions, rank=rank)
-    ghosts = _d4_ghosts(partitions == rank)
-
-    return {
-        int(partition): np.ravel_multi_index(
-            np.nonzero(ghosts & (partitions == partition)), partitions.shape
-        )
-        for partition in neighbors
-    }
-
-
 def vtu_dump(
     grid: landlab.ModelGrid,
     stream: IO[str] | None = None,
