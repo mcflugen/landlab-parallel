@@ -653,7 +653,9 @@ def _neighbor_partitions(partitions: ArrayLike, rank: int = 0) -> NDArray[np.int
     return np.unique(partitions[_d4_ghosts(is_my_node) & ~is_my_node])
 
 
-def _get_neighbor_ghosts(partitions, rank: int = 0):
+def _get_neighbor_ghosts(
+    partitions: ArrayLike, rank: int = 0
+) -> dict[int, NDArray[np.int_]]:
     """
     Examples
     --------
