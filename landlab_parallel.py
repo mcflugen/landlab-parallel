@@ -436,7 +436,7 @@ def create_landlab_grid(
     return grid
 
 
-def _d4_ghosts(partition: ArrayLike):
+def _d4_ghosts(partition: ArrayLike) -> NDArray[np.bool_]:
     """Identify nodes that are ghost nodes.
 
     Parameters
