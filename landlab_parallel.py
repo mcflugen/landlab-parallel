@@ -494,7 +494,7 @@ def _d4_ghosts(partition: ArrayLike) -> NDArray[np.bool_]:
     return (core != right) | (core != top) | (core != left) | (core != bottom)
 
 
-def _d8_ghosts(partition: ArrayLike):
+def _d8_ghosts(partition: ArrayLike) -> NDArray[np.bool_]:
     """Identify nodes that are ghost nodes, considering diagonals.
 
     Parameters
