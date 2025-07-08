@@ -560,7 +560,7 @@ def _d8_ghosts(partition: ArrayLike) -> NDArray[np.bool_]:
     return np.any(core != neighbors, axis=0)
 
 
-def _odd_r_ghosts(partition: ArrayLike):
+def _odd_r_ghosts(partition: ArrayLike) -> NDArray[np.bool_]:
     """Identify nodes that are ghost nodes on an odd-r layout.
 
     Parameters
