@@ -956,29 +956,6 @@ def _odd_r_ghosts(partition: ArrayLike) -> NDArray[np.bool_]:
     return is_ghost
 
 
-def _neighbor_partitions(partitions: ArrayLike, rank: int = 0) -> NDArray[np.int_]:
-    """Get partitions that are neighbors.
-
-    Examples
-    --------
-    >>> from landlab_parallel import _neighbor_partitions
-    >>> partitions = [
-    ...     [0, 0, 1, 1, 1],
-    ...     [0, 0, 0, 1, 1],
-    ...     [0, 2, 2, 1, 1],
-    ...     [3, 3, 2, 2, 1],
-    ...     [3, 3, 2, 2, 2],
-    ... ]
-    >>> _neighbor_partitions(partitions, rank=0)
-    array([1, 2, 3])
-    >>> _neighbor_partitions(partitions, rank=1)
-    array([0, 2])
-    """
-    partitions = np.asarray(partitions)
-    is_my_node = partitions == rank
-    return np.unique(partitions[_d4_ghosts(is_my_node) & ~is_my_node])
-
-
 def vtu_dump(
     grid: landlab.ModelGrid,
     stream: IO[str] | None = None,
