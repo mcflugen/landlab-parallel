@@ -24,6 +24,22 @@ __version__ = "0.1.0"
 def get_my_ghost_nodes(
     data: ArrayLike, my_id: int = 0, mode: str = "d4"
 ) -> dict[int, NDArray[np.int_]]:
+    """Return ghost node indices for a given partition.
+
+    Parameters
+    ----------
+    data : array_like
+        Partition matrix describing ownership of each node.
+    my_id : int, optional
+        Identifier of the local partition.
+    mode : {"d4", "d8", "odd-r", "raster"}, optional
+        Connectivity scheme used to determine neighbors.
+
+    Returns
+    -------
+    dict[int, ndarray]
+        Mapping of neighbor rank to the indices of ghost nodes.
+    """
     if mode in ("d4", "raster"):
         get_ghosts = _d4_ghosts
     elif mode == "odd-r":
@@ -47,6 +63,8 @@ def get_my_ghost_nodes(
 
 
 class Tile:
+    """A single tile of a partitioned grid."""
+
     def __init__(
         self,
         offset: tuple[int, ...],
@@ -55,6 +73,21 @@ class Tile:
         id_: int,
         mode: str = "raster",
     ):
+        """Create a tile.
+
+        Parameters
+        ----------
+        offset : tuple of int
+            Index of the lower-left corner of the tile within the full array.
+        shape : tuple of int
+            Shape of the full domain.
+        data : array_like
+            Partition matrix describing ownership of each node.
+        id_ : int
+            Identifier of the local tile.
+        mode : {"d4", "d8", "odd-r", "raster"}, optional
+            Connectivity scheme used to determine neighbors.
+        """
         self._shape = tuple(shape)
         self._offset = tuple(offset)
         self._data = np.asarray(data)
@@ -68,14 +101,48 @@ class Tile:
         self._ghost_nodes = get_my_ghost_nodes(self._data, my_id=id_, mode=mode)
 
     def local_to_global(self, indices: ArrayLike) -> NDArray[np.int_]:
+        """Convert local node indices to global indices.
+
+        Parameters
+        ----------
+        indices : array_like of int
+            Local indices to convert.
+
+        Returns
+        -------
+        ndarray of int
+            The corresponding global node indices.
+
+        """
         return self._index_mapper.local_to_global(indices)
 
     def global_to_local(self, indices: ArrayLike) -> NDArray[np.int_]:
+        """Convert global node indices to local indices.
+
+        Parameters
+        ----------
+        indices : array_like of int
+            Global indices to convert.
+
+        Returns
+        -------
+        ndarray of int
+            The corresponding local node indices.
+        """
         return self._index_mapper.global_to_local(indices)
 
 
 class Tiler(Mapping, ABC):
+    """Base class for tiling utilities."""
+
     def __init__(self, partitions: ArrayLike):
+        """Initialize the tiler.
+
+        Parameters
+        ----------
+        partitions : array_like
+            Partition matrix describing ownership of each node.
+        """
         self._partitions = np.asarray(partitions)
         self._shape = self._partitions.shape
 
@@ -88,29 +155,109 @@ class Tiler(Mapping, ABC):
         }
 
     def __getitem__(self, key: int) -> tuple[slice, ...]:
+        """Return slice bounds for ``key``.
+
+        Parameters
+        ----------
+        key : int
+            Identifier of the tile.
+
+        Returns
+        -------
+        tuple of slice
+            Bounds of the tile within the full array.
+        """
         return self._tiles[key]
 
     def __iter__(self) -> Iterator[int]:
+        """Iterate over tiles.
+
+        Returns
+        -------
+        iterator of int
+            Iterator over tile ids.
+        """
         return iter(self._tiles)
 
     def __len__(self) -> int:
+        """Number of tiles.
+
+        Returns
+        -------
+        int
+            The number of tiles in the tiler.
+        """
         return len(self._tiles)
 
     def getvalue(self, tile: int) -> NDArray:
+        """Return the partition slice for ``tile``.
+
+        Parameters
+        ----------
+        tile : int
+            Identifier of the tile to extract.
+
+        Returns
+        -------
+        ndarray
+            Slice of the partition array corresponding to ``tile``.
+        """
         return self._partitions[*self[tile]]
 
     def get_tile_bounds(
         self, partitions: ArrayLike, tile: int, halo: int = 0
     ) -> list[tuple[int, int]]:
+        """Return bounds of ``tile`` with optional halo.
+
+        Parameters
+        ----------
+        partitions : array_like
+            Partition matrix describing ownership of each node.
+        tile : int
+            Tile identifier.
+        halo : int, optional
+            Width of the halo to add around the tile.
+
+        Returns
+        -------
+        list of tuple of int
+            Start and stop indices for each dimension.
+        """
         raise NotImplementedError()
 
     def scatter(self, data: ArrayLike) -> dict[int, NDArray]:
+        """Split an array by tile.
+
+        Parameters
+        ----------
+        data : array_like
+            Array of values associated with the full domain.
+
+        Returns
+        -------
+        dict[int, ndarray]
+            Mapping of tile id to a copy of the tile's data.
+        """
         data = np.asarray(data).reshape(self._shape)
         return {tile: data[*bounds].copy() for tile, bounds in self.items()}
 
     def gather(
         self, tile_data: dict[int, NDArray], out: NDArray | None = None
     ) -> NDArray:
+        """Reassemble an array from tile data.
+
+        Parameters
+        ----------
+        tile_data : dict[int, array_like]
+            Mapping of tile id to data arrays.
+        out : ndarray, optional
+            Array to fill with gathered data.
+
+        Returns
+        -------
+        ndarray
+            Array assembled from the provided tile data.
+        """
         if out is None:
             out = np.empty(self._shape)
 
@@ -123,6 +270,20 @@ class Tiler(Mapping, ABC):
 
     @classmethod
     def from_pymetis(cls, shape: tuple[int, int], n_tiles: int) -> Self:
+        """Partition ``shape`` into ``n_tiles`` using PyMetis.
+
+        Parameters
+        ----------
+        shape : tuple of int
+            Shape of the grid to partition.
+        n_tiles : int
+            Desired number of tiles.
+
+        Returns
+        -------
+        Tiler
+            New tiler instance built from the generated partitions.
+        """
         _, partitions = pymetis.part_graph(n_tiles, adjacency=cls.get_adjacency(shape))
 
         return cls(np.asarray(partitions).reshape(shape))
@@ -133,7 +294,8 @@ class Tiler(Mapping, ABC):
 
 
 class D4Tiler(Tiler):
-    """
+    """Tiler for raster grids with D4 connectivity.
+
     Examples
     --------
     >>> from landlab_parallel import D4Tiler
@@ -184,6 +346,22 @@ class D4Tiler(Tiler):
     def get_tile_bounds(
         self, partitions: ArrayLike, tile: int, halo: int = 0
     ) -> list[tuple[int, int]]:
+        """Bounds of ``tile`` using D4 connectivity.
+
+        Parameters
+        ----------
+        partitions : array_like
+            Partition matrix describing ownership of each node.
+        tile : int
+            Tile identifier.
+        halo : int, optional
+            Width of the halo to include around the tile.
+
+        Returns
+        -------
+        list of tuple of int
+            Start and stop indices for each dimension.
+        """
         partitions = np.asarray(partitions)
 
         indices = np.nonzero(partitions == tile)
@@ -198,13 +376,43 @@ class D4Tiler(Tiler):
 
     @classmethod
     def get_adjacency(cls, shape: tuple[int, int]) -> list[list[int]]:
+        """Return adjacency list for a D4 grid.
+
+        Parameters
+        ----------
+        shape : tuple of int
+            Shape of the grid.
+
+        Returns
+        -------
+        list[list[int]]
+            Adjacency list using D4 connectivity.
+        """
         return _get_d4_adjacency(shape)
 
 
 class OddRTiler(Tiler):
+    """Tiler for hexagonal grids using odd-r layout."""
+
     def get_tile_bounds(
         self, partitions: ArrayLike, tile: int, halo: int = 0
     ) -> list[tuple[int, int]]:
+        """Bounds of ``tile`` for an odd-r grid.
+
+        Parameters
+        ----------
+        partitions : array_like
+            Partition matrix describing ownership of each node.
+        tile : int
+            Tile identifier.
+        halo : int, optional
+            Width of the halo to include around the tile.
+
+        Returns
+        -------
+        list of tuple of int
+            Start and stop indices for each dimension.
+        """
         partitions = np.asarray(partitions)
 
         if partitions.ndim != 2:
@@ -226,15 +434,38 @@ class OddRTiler(Tiler):
 
     @classmethod
     def get_adjacency(cls, shape: tuple[int, int]) -> list[list[int]]:
+        """Return adjacency list for an odd-r grid.
+
+        Parameters
+        ----------
+        shape : tuple of int
+            Shape of the grid.
+
+        Returns
+        -------
+        list[list[int]]
+            Adjacency list using odd-r connectivity.
+        """
         return _get_odd_r_adjacency(shape)
 
 
 class IndexMapper:
+    """Map between local and global node indices."""
+
     def __init__(
         self,
         shape: Sequence[int],
         submatrix: Sequence[tuple[int, int]] | None = None,
     ) -> None:
+        """Create an index mapper.
+
+        Parameters
+        ----------
+        shape : tuple of int
+            Shape of the full domain.
+        submatrix : tuple of tuple of int, optional
+            Lower and upper bounds for each dimension.
+        """
         self._shape = tuple(shape)
         if submatrix is None:
             self._limits = [(0, self._shape[dim]) for dim in range(len(self._shape))]
@@ -250,6 +481,18 @@ class IndexMapper:
             raise ValueError()
 
     def local_to_global(self, indices: ArrayLike) -> NDArray[np.int_]:
+        """Map local indices to global indices.
+
+        Parameters
+        ----------
+        indices : array_like of int
+            Local indices to convert.
+
+        Returns
+        -------
+        ndarray of int
+            Global indices corresponding to ``indices``.
+        """
         coords = np.unravel_index(
             np.asarray(indices, dtype=int),
             [limit[1] - limit[0] for limit in self._limits],
@@ -260,6 +503,18 @@ class IndexMapper:
         )
 
     def global_to_local(self, indices: ArrayLike) -> NDArray[np.int_]:
+        """Map global indices to local indices.
+
+        Parameters
+        ----------
+        indices : array_like of int
+            Global indices to convert.
+
+        Returns
+        -------
+        ndarray of int
+            Local indices within the submatrix.
+        """
         coords = np.unravel_index(np.asarray(indices, dtype=int), self._shape)
         return np.ravel_multi_index(
             [coords[dim] - self._limits[dim][0] for dim in range(len(coords))],
@@ -268,6 +523,18 @@ class IndexMapper:
 
 
 def _get_d4_adjacency(shape: tuple[int, int]) -> list[list[int]]:
+    """Return D4 adjacency list for a raster grid.
+
+    Parameters
+    ----------
+    shape : tuple of int
+        Number of rows and columns in the grid.
+
+    Returns
+    -------
+    list[list[int]]
+        Adjacency list using D4 connectivity.
+    """
     nodes = np.pad(
         np.arange(shape[0] * shape[1]).reshape(shape),
         pad_width=1,
@@ -289,6 +556,18 @@ def _get_d4_adjacency(shape: tuple[int, int]) -> list[list[int]]:
 
 
 def _get_d8_adjacency(shape: tuple[int, int]) -> list[list[int]]:
+    """Return D8 adjacency list for a raster grid.
+
+    Parameters
+    ----------
+    shape : tuple of int
+        Number of rows and columns in the grid.
+
+    Returns
+    -------
+    list[list[int]]
+        Adjacency list using D8 connectivity.
+    """
     nodes = np.pad(
         np.arange(shape[0] * shape[1]).reshape(shape),
         pad_width=1,
@@ -314,6 +593,18 @@ def _get_d8_adjacency(shape: tuple[int, int]) -> list[list[int]]:
 
 
 def _get_odd_r_adjacency(shape: tuple[int, int]) -> list[list[int]]:
+    """Return adjacency list for a hex grid with odd-r layout.
+
+    Parameters
+    ----------
+    shape : tuple of int
+        Number of rows and columns in the grid.
+
+    Returns
+    -------
+    list[list[int]]
+        Adjacency list using odd-r connectivity.
+    """
     nrows, ncols = shape
     rows, cols = np.meshgrid(np.arange(nrows), np.arange(ncols), indexing="ij")
     node_ids = rows * ncols + cols
@@ -350,6 +641,20 @@ def _submatrix_bounds(
     halo: int = 0,
 ) -> list[tuple[int, int]]:
     """Find the bounds of a submatrix.
+
+    Parameters
+    ----------
+    array : array_like
+        Array to search for the submatrix.
+    value : int or None, optional
+        Value defining the submatrix. If ``None`` any non-zero entry is used.
+    halo : int, optional
+        Number of cells to extend around the submatrix.
+
+    Returns
+    -------
+    list[tuple[int, int]]
+        Start and stop indices for each dimension.
 
     Examples
     --------
@@ -396,6 +701,26 @@ def create_landlab_grid(
     id_: int = 0,
     mode="raster",
 ) -> landlab.ModelGrid:
+    """Create a Landlab grid from a partition matrix.
+
+    Parameters
+    ----------
+    partition : array_like
+        Partition matrix describing ownership of each node.
+    spacing : float or tuple of float, optional
+        Grid spacing in the x and y directions.
+    ij_of_lower_left : tuple of int, optional
+        Index of the lower-left node of the tile within the full grid.
+    id_ : int, optional
+        Identifier of the local tile.
+    mode : {"raster", "odd-r", "d4"}, optional
+        Grid type describing connectivity.
+
+    Returns
+    -------
+    landlab.ModelGrid
+        The constructed grid with boundary conditions set.
+    """
     is_their_node = np.asarray(partition) != id_
 
     if mode == "odd-r":
@@ -442,8 +767,8 @@ def _d4_ghosts(partition: ArrayLike) -> NDArray[np.bool_]:
 
     Parameters
     ----------
-    partition: array_like of int
-        Partition matrix.
+    partition : array_like of int
+        Partition matrix describing ownership of each node.
 
     Returns
     -------
@@ -500,8 +825,8 @@ def _d8_ghosts(partition: ArrayLike) -> NDArray[np.bool_]:
 
     Parameters
     ----------
-    partition: array_like of int
-        Partition matrix.
+    partition : array_like of int
+        Partition matrix describing ownership of each node.
 
     Returns
     -------
@@ -566,8 +891,8 @@ def _odd_r_ghosts(partition: ArrayLike) -> NDArray[np.bool_]:
 
     Parameters
     ----------
-    partition: array_like of int
-        Partition matrix.
+    partition : array_like of int
+        Partition matrix describing ownership of each node.
 
     Returns
     -------
@@ -691,6 +1016,28 @@ def vtu_dump(
     z_coord: float = 0.0,
     at: str = "node",
 ) -> str | None:
+    """Return a VTU representation of a grid.
+
+    Parameters
+    ----------
+    grid : landlab.ModelGrid
+        Grid containing fields to output.
+    stream : file-like object or None, optional
+        Stream to write VTU data to. If ``None`` the string is returned.
+    include : sequence of str or "*", optional
+        Fields to include.
+    exclude : sequence of str or None, optional
+        Fields to exclude.
+    z_coord : float, optional
+        Elevation to use for 2D grids.
+    at : {"node", "cell"}, optional
+        Location of values within the grid.
+
+    Returns
+    -------
+    str or None
+        VTU representation or ``None`` if written to ``stream``.
+    """
     mask = grid.status_at_node == grid.BC_NODE_IS_CLOSED
     saved_fields = {
         name: grid.at_node[name]
@@ -737,6 +1084,20 @@ def vtu_dump(
 
 
 def pvtu_dump(grid: landlab.ModelGrid, vtu_files: Sequence[str] = ()) -> str:
+    """Return a PVTU file referencing multiple VTU files.
+
+    Parameters
+    ----------
+    grid : landlab.ModelGrid
+        Grid from which point fields are derived.
+    vtu_files : sequence of str, optional
+        Paths to VTU files that comprise the full grid.
+
+    Returns
+    -------
+    str
+        XML string describing the parallel unstructured grid.
+    """
     vtkfile = ET.Element(
         "VTKFile", type="PUnstructuredGrid", version="1.0", byte_order="LittleEndian"
     )
