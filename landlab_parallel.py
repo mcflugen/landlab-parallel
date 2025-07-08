@@ -7,6 +7,7 @@ from abc import ABC
 from collections.abc import Iterator
 from collections.abc import Mapping
 from collections.abc import Sequence
+from typing import IO
 from typing import Self
 from xml.dom import minidom
 
@@ -682,7 +683,14 @@ def _get_neighbor_ghosts(
     }
 
 
-def vtu_dump(grid, stream=None, include="*", exclude=None, z_coord=0.0, at="node"):
+def vtu_dump(
+    grid: landlab.ModelGrid,
+    stream: IO[str] | None = None,
+    include: str = "*",
+    exclude: Sequence[str] | None = None,
+    z_coord: float = 0.0,
+    at: str = "node",
+) -> str | None:
     mask = grid.status_at_node == grid.BC_NODE_IS_CLOSED
     saved_fields = {
         name: grid.at_node[name]
@@ -725,6 +733,7 @@ def vtu_dump(grid, stream=None, include="*", exclude=None, z_coord=0.0, at="node
         return content
     else:
         stream.write(content)
+        return None
 
 
 def pvtu_dump(grid, vtu_files=()):
