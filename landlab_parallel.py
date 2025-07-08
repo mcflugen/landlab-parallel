@@ -312,7 +312,7 @@ def _get_d8_adjacency(shape: tuple[int, int]) -> list[list[int]]:
     return [[int(x) for x in row[row != -1]] for row in d8_neighbors.reshape(-1, 8)]
 
 
-def _get_odd_r_adjacency(shape: tuple[int, int]):
+def _get_odd_r_adjacency(shape: tuple[int, int]) -> list[list[int]]:
     nrows, ncols = shape
     rows, cols = np.meshgrid(np.arange(nrows), np.arange(ncols), indexing="ij")
     node_ids = rows * ncols + cols
@@ -320,7 +320,7 @@ def _get_odd_r_adjacency(shape: tuple[int, int]):
     even_offsets = np.array([[0, 1], [1, 0], [1, -1], [0, -1], [-1, -1], [-1, 0]])
     odd_offsets = np.array([[0, 1], [1, 1], [1, 0], [0, -1], [-1, 0], [-1, 1]])
 
-    adjacency = [[] for _ in range(nrows * ncols)]
+    adjacency: list[list[int]] = [[] for _ in range(nrows * ncols)]
 
     for parity, offsets in enumerate([even_offsets, odd_offsets]):
         parity_mask = rows % 2 == parity
