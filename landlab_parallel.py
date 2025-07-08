@@ -287,7 +287,7 @@ def _get_d4_adjacency(shape: tuple[int, int]) -> list[list[int]]:
     return [[int(x) for x in row[row != -1]] for row in d4_neighbors.reshape(-1, 4)]
 
 
-def _get_d8_adjacency(shape: tuple[int]):
+def _get_d8_adjacency(shape: tuple[int, int]) -> list[list[int]]:
     nodes = np.pad(
         np.arange(shape[0] * shape[1]).reshape(shape),
         pad_width=1,
