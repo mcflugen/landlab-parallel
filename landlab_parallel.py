@@ -22,13 +22,13 @@ __version__ = "0.1.0"
 
 
 def get_my_ghost_nodes(
-    data: ArrayLike, my_id: int = 0, mode: str = "d4"
+    partitions: ArrayLike, my_id: int = 0, mode: str = "d4"
 ) -> dict[int, NDArray[np.int_]]:
     """Return ghost node indices for a given partition.
 
     Parameters
     ----------
-    data : array_like
+    partitions : array_like
         Partition matrix describing ownership of each node.
     my_id : int, optional
         Identifier of the local partition.
@@ -39,6 +39,17 @@ def get_my_ghost_nodes(
     -------
     dict[int, ndarray]
         Mapping of neighbor rank to the indices of ghost nodes.
+
+    Examples
+    --------
+    >>> partitions = [
+    ...     [0, 0, 1],
+    ...     [0, 1, 1],
+    ...     [2, 2, 1],
+    ... ]
+    >>> result = get_my_ghost_nodes(partitions, my_id=0)
+    >>> {int(rank): nodes.tolist() for rank, nodes in result.items()}
+    {1: [2, 4], 2: [6]}
     """
     if mode in ("d4", "raster"):
         get_ghosts = _d4_ghosts
@@ -49,14 +60,14 @@ def get_my_ghost_nodes(
     else:
         raise ValueError(f"{mode}: mode not understood")
 
-    data_array = np.asarray(data)
-    is_my_node = data_array == my_id
+    partitions_array = np.asarray(partitions)
+    is_my_node = partitions_array == my_id
     is_ghost = get_ghosts(is_my_node)
-    neighbors = np.unique(data_array[~is_my_node & is_ghost])
+    neighbors = np.unique(partitions_array[~is_my_node & is_ghost])
 
     return {
         rank: np.ravel_multi_index(
-            np.nonzero(is_ghost & (data_array == rank)), data_array.shape
+            np.nonzero(is_ghost & (partitions_array == rank)), partitions_array.shape
         )
         for rank in neighbors
     }
@@ -69,7 +80,7 @@ class Tile:
         self,
         offset: tuple[int, ...],
         shape: tuple[int, ...],
-        data: ArrayLike,
+        partitions: ArrayLike,
         id_: int,
         mode: str = "raster",
     ):
@@ -81,7 +92,7 @@ class Tile:
             Index of the lower-left corner of the tile within the full array.
         shape : tuple of int
             Shape of the full domain.
-        data : array_like
+        partitions : array_like
             Partition matrix describing ownership of each node.
         id_ : int
             Identifier of the local tile.
@@ -90,15 +101,17 @@ class Tile:
         """
         self._shape = tuple(shape)
         self._offset = tuple(offset)
-        self._data = np.asarray(data)
+        self._partitions = np.asarray(partitions)
         self._id = id_
 
         self._index_mapper = IndexMapper(
             self._shape,
-            submatrix=[(o, o + self._data.shape[dim]) for dim, o in enumerate(offset)],
+            submatrix=[
+                (o, o + self._partitions.shape[dim]) for dim, o in enumerate(offset)
+            ],
         )
 
-        self._ghost_nodes = get_my_ghost_nodes(self._data, my_id=id_, mode=mode)
+        self._ghost_nodes = get_my_ghost_nodes(self._partitions, my_id=id_, mode=mode)
 
     def local_to_global(self, indices: ArrayLike) -> NDArray[np.int_]:
         """Convert local node indices to global indices.
@@ -695,7 +708,7 @@ def _submatrix_bounds(
 
 
 def create_landlab_grid(
-    partition: ArrayLike,
+    partitions: ArrayLike,
     spacing: float | tuple[float, float] = 1.0,
     ij_of_lower_left: tuple[int, int] = (0, 0),
     id_: int = 0,
@@ -705,7 +718,7 @@ def create_landlab_grid(
 
     Parameters
     ----------
-    partition : array_like
+    partitions : array_like
         Partition matrix describing ownership of each node.
     spacing : float or tuple of float, optional
         Grid spacing in the x and y directions.
@@ -721,7 +734,7 @@ def create_landlab_grid(
     landlab.ModelGrid
         The constructed grid with boundary conditions set.
     """
-    is_their_node = np.asarray(partition) != id_
+    is_their_node = np.asarray(partitions) != id_
 
     if mode == "odd-r":
         if not isinstance(spacing, float):
@@ -762,12 +775,12 @@ def create_landlab_grid(
     return grid
 
 
-def _d4_ghosts(partition: ArrayLike) -> NDArray[np.bool_]:
+def _d4_ghosts(partitions: ArrayLike) -> NDArray[np.bool_]:
     """Identify nodes that are ghost nodes.
 
     Parameters
     ----------
-    partition : array_like of int
+    partitions : array_like of int
         Partition matrix describing ownership of each node.
 
     Returns
@@ -804,28 +817,28 @@ def _d4_ghosts(partition: ArrayLike) -> NDArray[np.bool_]:
            [0, 0, 0, 1, 0],
            [0, 0, 0, 0, 1]])
     """
-    partition = np.pad(
-        partition,
+    partitions = np.pad(
+        partitions,
         pad_width=((1, 1), (1, 1)),
         mode="edge",
     )
 
-    right = partition[2:, 1:-1]
-    top = partition[1:-1, 2:]
-    left = partition[:-2, 1:-1]
-    bottom = partition[1:-1, :-2]
+    right = partitions[2:, 1:-1]
+    top = partitions[1:-1, 2:]
+    left = partitions[:-2, 1:-1]
+    bottom = partitions[1:-1, :-2]
 
-    core = partition[1:-1, 1:-1]
+    core = partitions[1:-1, 1:-1]
 
     return (core != right) | (core != top) | (core != left) | (core != bottom)
 
 
-def _d8_ghosts(partition: ArrayLike) -> NDArray[np.bool_]:
+def _d8_ghosts(partitions: ArrayLike) -> NDArray[np.bool_]:
     """Identify nodes that are ghost nodes, considering diagonals.
 
     Parameters
     ----------
-    partition : array_like of int
+    partitions : array_like of int
         Partition matrix describing ownership of each node.
 
     Returns
@@ -862,22 +875,22 @@ def _d8_ghosts(partition: ArrayLike) -> NDArray[np.bool_]:
            [0, 0, 1, 1, 0],
            [0, 0, 0, 1, 1]])
     """
-    partition = np.pad(
-        partition,
+    partitions = np.pad(
+        partitions,
         pad_width=((1, 1), (1, 1)),
         mode="edge",
     )
 
-    right = partition[1:-1, 2:]
-    top_right = partition[2:, 2:]
-    top = partition[2:, 1:-1]
-    top_left = partition[2:, :-2]
-    left = partition[1:-1, :-2]
-    bottom_left = partition[:-2, :-2]
-    bottom = partition[:-2, 1:-1]
-    bottom_right = partition[:-2, 2:]
+    right = partitions[1:-1, 2:]
+    top_right = partitions[2:, 2:]
+    top = partitions[2:, 1:-1]
+    top_left = partitions[2:, :-2]
+    left = partitions[1:-1, :-2]
+    bottom_left = partitions[:-2, :-2]
+    bottom = partitions[:-2, 1:-1]
+    bottom_right = partitions[:-2, 2:]
 
-    core = partition[1:-1, 1:-1]
+    core = partitions[1:-1, 1:-1]
 
     neighbors = np.stack(
         [right, top_right, top, top_left, left, bottom_left, bottom, bottom_right]
@@ -886,12 +899,12 @@ def _d8_ghosts(partition: ArrayLike) -> NDArray[np.bool_]:
     return np.any(core != neighbors, axis=0)
 
 
-def _odd_r_ghosts(partition: ArrayLike) -> NDArray[np.bool_]:
+def _odd_r_ghosts(partitions: ArrayLike) -> NDArray[np.bool_]:
     """Identify nodes that are ghost nodes on an odd-r layout.
 
     Parameters
     ----------
-    partition : array_like of int
+    partitions : array_like of int
         Partition matrix describing ownership of each node.
 
     Returns
@@ -928,18 +941,18 @@ def _odd_r_ghosts(partition: ArrayLike) -> NDArray[np.bool_]:
            [0, 0, 1, 1, 0],
            [0, 0, 0, 0, 1]])
     """
-    partition = np.pad(partition, pad_width=((1, 1), (1, 1)), mode="edge")
+    partitions = np.pad(partitions, pad_width=((1, 1), (1, 1)), mode="edge")
 
-    right = partition[1:-1, 2:]
-    top_right = partition[2:, 2:]
-    top = partition[2:, 1:-1]
-    top_left = partition[2:, :-2]
-    left = partition[1:-1, :-2]
-    bottom_left = partition[:-2, :-2]
-    bottom = partition[:-2, 1:-1]
-    bottom_right = partition[:-2, 2:]
+    right = partitions[1:-1, 2:]
+    top_right = partitions[2:, 2:]
+    top = partitions[2:, 1:-1]
+    top_left = partitions[2:, :-2]
+    left = partitions[1:-1, :-2]
+    bottom_left = partitions[:-2, :-2]
+    bottom = partitions[:-2, 1:-1]
+    bottom_right = partitions[:-2, 2:]
 
-    core = partition[1:-1, 1:-1]
+    core = partitions[1:-1, 1:-1]
 
     row_indices = np.indices(core.shape)[0]
     is_even_row = (row_indices % 2) == 0
