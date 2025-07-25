@@ -22,13 +22,13 @@ __version__ = "0.1.0"
 
 
 def get_my_ghost_nodes(
-    data: ArrayLike, my_id: int = 0, mode: str = "d4"
+    partitions: ArrayLike, my_id: int = 0, mode: str = "d4"
 ) -> dict[int, NDArray[np.int_]]:
     """Return ghost node indices for a given partition.
 
     Parameters
     ----------
-    data : array_like
+    partitions : array_like
         Partition matrix describing ownership of each node.
     my_id : int, optional
         Identifier of the local partition.
@@ -39,6 +39,17 @@ def get_my_ghost_nodes(
     -------
     dict[int, ndarray]
         Mapping of neighbor rank to the indices of ghost nodes.
+
+    Examples
+    --------
+    >>> partitions = [
+    ...     [0, 0, 1],
+    ...     [0, 1, 1],
+    ...     [2, 2, 1],
+    ... ]
+    >>> result = get_my_ghost_nodes(partitions, my_id=0)
+    >>> {int(rank): nodes.tolist() for rank, nodes in result.items()}
+    {1: [2, 4], 2: [6]}
     """
     if mode in ("d4", "raster"):
         get_ghosts = _d4_ghosts
@@ -49,7 +60,7 @@ def get_my_ghost_nodes(
     else:
         raise ValueError(f"{mode}: mode not understood")
 
-    data_array = np.asarray(data)
+    data_array = np.asarray(partitions)
     is_my_node = data_array == my_id
     is_ghost = get_ghosts(is_my_node)
     neighbors = np.unique(data_array[~is_my_node & is_ghost])
@@ -69,7 +80,7 @@ class Tile:
         self,
         offset: tuple[int, ...],
         shape: tuple[int, ...],
-        data: ArrayLike,
+        partitions: ArrayLike,
         id_: int,
         mode: str = "raster",
     ):
@@ -81,7 +92,7 @@ class Tile:
             Index of the lower-left corner of the tile within the full array.
         shape : tuple of int
             Shape of the full domain.
-        data : array_like
+        partitions : array_like
             Partition matrix describing ownership of each node.
         id_ : int
             Identifier of the local tile.
@@ -90,7 +101,7 @@ class Tile:
         """
         self._shape = tuple(shape)
         self._offset = tuple(offset)
-        self._data = np.asarray(data)
+        self._data = np.asarray(partitions)
         self._id = id_
 
         self._index_mapper = IndexMapper(
