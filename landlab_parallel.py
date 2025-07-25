@@ -60,14 +60,14 @@ def get_my_ghost_nodes(
     else:
         raise ValueError(f"{mode}: mode not understood")
 
-    data_array = np.asarray(partitions)
-    is_my_node = data_array == my_id
+    partitions_array = np.asarray(partitions)
+    is_my_node = partitions_array == my_id
     is_ghost = get_ghosts(is_my_node)
-    neighbors = np.unique(data_array[~is_my_node & is_ghost])
+    neighbors = np.unique(partitions_array[~is_my_node & is_ghost])
 
     return {
         rank: np.ravel_multi_index(
-            np.nonzero(is_ghost & (data_array == rank)), data_array.shape
+            np.nonzero(is_ghost & (partitions_array == rank)), partitions_array.shape
         )
         for rank in neighbors
     }
