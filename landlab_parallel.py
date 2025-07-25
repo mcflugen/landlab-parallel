@@ -101,15 +101,17 @@ class Tile:
         """
         self._shape = tuple(shape)
         self._offset = tuple(offset)
-        self._data = np.asarray(partitions)
+        self._partitions = np.asarray(partitions)
         self._id = id_
 
         self._index_mapper = IndexMapper(
             self._shape,
-            submatrix=[(o, o + self._data.shape[dim]) for dim, o in enumerate(offset)],
+            submatrix=[
+                (o, o + self._partitions.shape[dim]) for dim, o in enumerate(offset)
+            ],
         )
 
-        self._ghost_nodes = get_my_ghost_nodes(self._data, my_id=id_, mode=mode)
+        self._ghost_nodes = get_my_ghost_nodes(self._partitions, my_id=id_, mode=mode)
 
     def local_to_global(self, indices: ArrayLike) -> NDArray[np.int_]:
         """Convert local node indices to global indices.
