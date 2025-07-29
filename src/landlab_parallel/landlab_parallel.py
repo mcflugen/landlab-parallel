@@ -18,8 +18,6 @@ import pymetis
 from numpy.typing import ArrayLike
 from numpy.typing import NDArray
 
-__version__ = "0.1.0"
-
 
 def get_my_ghost_nodes(
     partitions: ArrayLike, my_id: int = 0, mode: str = "d4"
