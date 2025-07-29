@@ -51,16 +51,16 @@ changelog = "https://github.com/mcflugen/landlab-parallel/blob/main/CHANGES.md"
 dev = ["nox"]
 testing = ["pytest"]
 
-[tool.setuptools]
-py-modules = ["landlab_parallel"]
-
 [tool.setuptools.dynamic]
 readme = {file = ["README.md", "AUTHORS.md", "CHANGES.md"], content-type="text/markdown"}
-version = {attr = "landlab_parallel.__version__"}
+version = {attr = "landlab_parallel._version.__version__"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
 
 [tool.pytest.ini_options]
 minversion = "6.0"
-testpaths = ["tests", "landlab_parallel.py"]
+testpaths = ["tests", "src/landlab_parallel"]
 norecursedirs = [".*", "*.egg*", "build", "dist"]
 addopts = [
   '--tb=native',
