@@ -1007,23 +1007,29 @@ def vtu_dump(
         grid.at_node[name] = array.copy()
         grid.at_node[name][mask] = np.nan
 
-    with tempfile.NamedTemporaryFile(suffix=".vtk", mode="w+", delete=False) as tmp:
+    with tempfile.NamedTemporaryFile(
+        suffix=".vtk", mode="w+", delete=False, encoding="utf-8"
+    ) as tmp:
         tmp.write(
             landlab.io.legacy_vtk.dump(
                 grid, include=include, exclude=exclude, z_coord=z_coord, at=at
             )
         )
         tmp.flush()
-        mesh = meshio.read(tmp.name)
+        vtk_path = tmp.name
+    mesh = meshio.read(vtk_path)
+    os.remove(vtk_path)
 
     for name, array in saved_fields.items():
         grid.at_node[name] = array
 
-    with tempfile.NamedTemporaryFile(suffix=".vtu", mode="r+", delete=False) as tmp:
-        tmp.close()
-        meshio.write(tmp.name, mesh)
-        with open(tmp.name, encoding="utf-8") as f:
-            contents = f.read()
+    with tempfile.NamedTemporaryFile(suffix=".vtu", delete=False) as tmp:
+        vtu_path = tmp.name
+    meshio.write(vtu_path, mesh)
+
+    with open(vtu_path, encoding="utf-8") as f:
+        contents = f.read()
+    os.remove(vtu_path)
 
     content = "\n".join(
         [
