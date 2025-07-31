@@ -8,12 +8,12 @@ from landlab.components import StreamPowerEroder
 from numpy.typing import ArrayLike
 from numpy.typing import NDArray
 
+from landlab_parallel.io import pvtu_dump
+from landlab_parallel.io import vtu_dump
 from landlab_parallel.landlab_parallel import D4Tiler
 from landlab_parallel.landlab_parallel import OddRTiler
 from landlab_parallel.landlab_parallel import Tile
 from landlab_parallel.landlab_parallel import create_landlab_grid
-from landlab_parallel.landlab_parallel import pvtu_dump
-from landlab_parallel.landlab_parallel import vtu_dump
 
 
 def run(shape, mode="odd-r", seed=None):
