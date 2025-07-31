@@ -8,65 +8,6 @@ from landlab_parallel.ghosts import _d4_ghosts
 from landlab_parallel.ghosts import _odd_r_ghosts
 
 
-def _submatrix_bounds(
-    array: ArrayLike,
-    value: int | None = None,
-    halo: int = 0,
-) -> list[tuple[int, int]]:
-    """Find the bounds of a submatrix.
-
-    Parameters
-    ----------
-    array : array_like
-        Array to search for the submatrix.
-    value : int or None, optional
-        Value defining the submatrix. If ``None`` any non-zero entry is used.
-    halo : int, optional
-        Number of cells to extend around the submatrix.
-
-    Returns
-    -------
-    list[tuple[int, int]]
-        Start and stop indices for each dimension.
-
-    Examples
-    --------
-    >>> from landlab_parallel import _submatrix_bounds
-    >>> partitions = [
-    ...     [0, 0, 1, 1, 1],
-    ...     [0, 0, 0, 1, 1],
-    ...     [0, 2, 2, 1, 1],
-    ...     [3, 3, 2, 2, 1],
-    ...     [3, 3, 2, 2, 2],
-    ... ]
-    >>> _submatrix_bounds(partitions, 2)
-    [(2, 5), (1, 5)]
-    >>> _submatrix_bounds(partitions, 3, halo=1)
-    [(2, 5), (0, 3)]
-    >>> bounds = _submatrix_bounds(partitions, 3, halo=1)
-
-    >>> partitions = np.asarray(partitions)
-    >>> partitions[slice(*bounds[0]), slice(*bounds[1])]
-    array([[0, 2, 2],
-           [3, 3, 2],
-           [3, 3, 2]])
-    """
-    array = np.asarray(array)
-
-    if value is None:
-        indices = np.nonzero(array)
-    else:
-        indices = np.nonzero(array == value)
-
-    return [
-        (
-            int(max(indices[dim].min() - halo, 0)),
-            int(min(indices[dim].max() + halo + 1, array.shape[dim])),
-        )
-        for dim in range(array.ndim)
-    ]
-
-
 def create_landlab_grid(
     partitions: ArrayLike,
     spacing: float | tuple[float, float] = 1.0,
