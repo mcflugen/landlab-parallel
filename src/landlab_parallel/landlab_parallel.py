@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import os
 import tempfile
 import xml.etree.ElementTree as ET
@@ -1007,18 +1008,9 @@ def vtu_dump(
         grid.at_node[name] = array.copy()
         grid.at_node[name][mask] = np.nan
 
-    with tempfile.NamedTemporaryFile(
-        suffix=".vtk", mode="w+", delete=False, encoding="utf-8"
-    ) as tmp:
-        tmp.write(
-            landlab.io.legacy_vtk.dump(
-                grid, include=include, exclude=exclude, z_coord=z_coord, at=at
-            )
-        )
-        tmp.flush()
-        vtk_path = tmp.name
-    mesh = meshio.read(vtk_path)
-    os.remove(vtk_path)
+    mesh = convert_grid_to_mesh(
+        grid, include=include, exclude=exclude, z_coord=z_coord, at=at
+    )
 
     for name, array in saved_fields.items():
         grid.at_node[name] = array
@@ -1091,3 +1083,25 @@ def pvtu_dump(grid: landlab.ModelGrid, vtu_files: Sequence[str] = ()) -> str:
     parsed = minidom.parseString(ET.tostring(root))
 
     return parsed.toprettyxml(indent="  ")
+
+
+def convert_grid_to_mesh(
+    grid: landlab.ModelGrid,
+    *,
+    include: str = "*",
+    exclude: Sequence[str] | None = None,
+    z_coord: float = 0.0,
+    at: str = "node",
+) -> meshio.Mesh:
+    fd, vtk_path = tempfile.mkstemp(suffix=".vtk", text=True)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as stream:
+            stream.write(
+                landlab.io.legacy_vtk.dump(
+                    grid, include=include, exclude=exclude, z_coord=z_coord, at=at
+                )
+            )
+        return meshio.read(vtk_path)
+    finally:
+        with contextlib.suppress(OSError):
+            os.remove(vtk_path)
