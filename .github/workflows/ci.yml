@@ -85,7 +85,7 @@ jobs:
       - name: Test
         run: |
           pip install nox
-          nox --non-interactive --error-on-missing-interpreter -s test -- dist/*whl
+          nox --non-interactive --error-on-missing-interpreter -s test -- dist/*.tar.gz
 
   coverage:
     needs: build-sdist
