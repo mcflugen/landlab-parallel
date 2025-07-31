@@ -579,7 +579,10 @@ def create_landlab_grid(
 
     if mode == "odd-r":
         if not isinstance(spacing, float):
-            raise ValueError("spacing must be scalar for odd-r layout")
+            raise TypeError(
+                "Invalid spacing. The spacing for odd-r layout must be scalar"
+                f" but got {spacing}."
+            )
         shift: float = 0.5 if ij_of_lower_left[0] % 2 else 0.0
         xy_of_lower_left = (
             (ij_of_lower_left[1] + shift) * spacing,
