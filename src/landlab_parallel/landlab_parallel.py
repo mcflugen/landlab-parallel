@@ -182,7 +182,7 @@ class Tiler(Mapping, ABC):
         list of tuple of int
             Start and stop indices for each dimension.
         """
-        raise NotImplementedError()
+        raise NotImplementedError("get_tile_bounds")
 
     def scatter(self, data: ArrayLike) -> dict[int, NDArray]:
         """Split an array by tile.
