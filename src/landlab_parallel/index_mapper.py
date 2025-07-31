@@ -31,12 +31,19 @@ class IndexMapper:
             self._limits = [(limit[0], limit[1]) for limit in submatrix]
 
         if len(self._limits) != len(self._shape):
-            raise ValueError()
+            raise ValueError(
+                "Dimension mismatch. The number of dimensions of the submatrix"
+                f" ({len(self._limits)}) must match the number of dimensions of"
+                f" the full domain ({len(self._shape)})."
+            )
         if any(
             limit[0] < 0 or limit[1] > dim
             for limit, dim in zip(self._limits, self._shape)
         ):
-            raise ValueError()
+            raise ValueError(
+                "Invalid submatrix bounds. The submatrix bounds must be within"
+                " those of the full domain."
+            )
 
     def local_to_global(self, indices: ArrayLike) -> NDArray[np.int_]:
         """Map local indices to global indices.
