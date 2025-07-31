@@ -19,30 +19,40 @@ def build(session: nox.Session) -> None:
 
 @nox.session
 def install(session: nox.Session) -> None:
-    """install the package"""
-    arg = session.posargs[0] if session.posargs else build(session)
+    first_arg = session.posargs[0] if session.posargs else None
 
-    session.install("-r", "requirements.in")
-
-    if os.path.isdir(arg):
-        session.install(
-            "landlab-parallel", f"--find-links={arg}", "--no-deps", "--no-index"
-        )
-    elif os.path.isfile(arg):
-        session.install(arg, "--no-deps")
+    if first_arg:
+        if os.path.isfile(first_arg):
+            session.install(first_arg)
+        elif os.path.isdir(first_arg):
+            session.install(
+                "landlab-parallel",
+                f"--find-links={first_arg}",
+                "--no-deps",
+                "--no-index",
+            )
+        else:
+            session.error("path must be a source distribution or folder")
     else:
-        session.error("first argument must be either a wheel or a wheelhouse folder")
+        session.install("-e", ".")
 
 
 @nox.session
 def test(session: nox.Session) -> None:
     """Run the tests."""
-    session.install("pytest")
+    session.install("coverage", "pytest")
     install(session)
 
     session.run(
-        "pytest", "src/landlab_parallel", "tests", "--pyargs", "--doctest-modules"
+        "coverage",
+        "run",
+        "--branch",
+        "--source=landlab_parallel,tests",
+        "--module",
+        "pytest",
     )
+    session.run("coverage", "report", "--ignore-errors", "--show-missing")
+    session.run("coverage", "xml", "-o", "coverage.xml")
 
 
 @nox.session
