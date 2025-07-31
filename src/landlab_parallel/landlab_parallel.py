@@ -376,8 +376,9 @@ class OddRTiler(Tiler):
 
         if partitions.ndim != 2:
             raise ValueError(
-                f"{partitions.shape!r}: invalid number of dimensions"
-                f" ({partitions.ndim != 2})"
+                "Invalid number of dimensions. The OddRTiler requires"
+                " a partition matrix that is 2 dimensional. The provided"
+                f" matrix has a shape of {partitions.shape!r}."
             )
 
         indices = np.nonzero(partitions == tile)
