@@ -182,7 +182,7 @@ class Tiler(Mapping, ABC):
         list of tuple of int
             Start and stop indices for each dimension.
         """
-        raise NotImplementedError()
+        raise NotImplementedError("get_tile_bounds")
 
     def scatter(self, data: ArrayLike) -> dict[int, NDArray]:
         """Split an array by tile.
@@ -376,8 +376,9 @@ class OddRTiler(Tiler):
 
         if partitions.ndim != 2:
             raise ValueError(
-                f"{partitions.shape!r}: invalid number of dimensions"
-                f" ({partitions.ndim != 2})"
+                "Invalid number of dimensions. The OddRTiler requires"
+                " a partition matrix that is 2 dimensional. The provided"
+                f" matrix has a shape of {partitions.shape!r}."
             )
 
         indices = np.nonzero(partitions == tile)
@@ -432,12 +433,19 @@ class IndexMapper:
             self._limits = [(limit[0], limit[1]) for limit in submatrix]
 
         if len(self._limits) != len(self._shape):
-            raise ValueError()
+            raise ValueError(
+                "Dimension mismatch. The number of dimensions of the submatrix"
+                f" ({len(self._limits)}) must match the number of dimensions of"
+                f" the full domain ({len(self._shape)})."
+            )
         if any(
             limit[0] < 0 or limit[1] > dim
             for limit, dim in zip(self._limits, self._shape)
         ):
-            raise ValueError()
+            raise ValueError(
+                "Invalid submatrix bounds. The submatrix bounds must be within"
+                " those of the full domain."
+            )
 
     def local_to_global(self, indices: ArrayLike) -> NDArray[np.int_]:
         """Map local indices to global indices.
@@ -571,7 +579,10 @@ def create_landlab_grid(
 
     if mode == "odd-r":
         if not isinstance(spacing, float):
-            raise ValueError("spacing must be scalar for odd-r layout")
+            raise TypeError(
+                "Invalid spacing. The spacing for odd-r layout must be scalar"
+                f" but got {spacing}."
+            )
         shift: float = 0.5 if ij_of_lower_left[0] % 2 else 0.0
         xy_of_lower_left = (
             (ij_of_lower_left[1] + shift) * spacing,

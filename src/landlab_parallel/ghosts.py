@@ -35,14 +35,19 @@ def get_my_ghost_nodes(
     >>> {int(rank): nodes.tolist() for rank, nodes in result.items()}
     {1: [2, 4], 2: [6]}
     """
-    if mode in ("d4", "raster"):
-        get_ghosts = _d4_ghosts
-    elif mode == "odd-r":
-        get_ghosts = _odd_r_ghosts
-    elif mode == "d8":
-        get_ghosts = _d8_ghosts
-    else:
-        raise ValueError(f"{mode}: mode not understood")
+    mode_handlers = {
+        "d4": _d4_ghosts,
+        "d8": _d8_ghosts,
+        "odd-r": _odd_r_ghosts,
+        "raster": _d4_ghosts,
+    }
+    try:
+        get_ghosts = mode_handlers[mode]
+    except KeyError:
+        valid_choices = ", ".join(repr(key) for key in sorted(mode_handlers))
+        raise ValueError(
+            f"Mode not understood. Must be one of {valid_choices} but got {mode!r}."
+        )
 
     partitions_array = np.asarray(partitions)
     is_my_node = partitions_array == my_id
