@@ -1015,13 +1015,7 @@ def vtu_dump(
     for name, array in saved_fields.items():
         grid.at_node[name] = array
 
-    with tempfile.NamedTemporaryFile(suffix=".vtu", delete=False) as tmp:
-        vtu_path = tmp.name
-    meshio.write(vtu_path, mesh)
-
-    with open(vtu_path, encoding="utf-8") as f:
-        contents = f.read()
-    os.remove(vtu_path)
+    contents = write_mesh_to_vtu_string(mesh)
 
     content = "\n".join(
         [
@@ -1105,3 +1099,15 @@ def convert_grid_to_mesh(
     finally:
         with contextlib.suppress(OSError):
             os.remove(vtk_path)
+
+
+def write_mesh_to_vtu_string(mesh: meshio.Mesh) -> str:
+    fd, vtu_path = tempfile.mkstemp(suffix=".vtu")
+    os.close(fd)
+    try:
+        meshio.write(vtu_path, mesh)
+        with open(vtu_path, encoding="utf-8") as stream:
+            return stream.read()
+    finally:
+        with contextlib.suppress(OSError):
+            os.remove(vtu_path)
