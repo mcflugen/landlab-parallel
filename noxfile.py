@@ -40,12 +40,19 @@ def install(session: nox.Session) -> None:
 @nox.session
 def test(session: nox.Session) -> None:
     """Run the tests."""
-    session.install("pytest")
+    session.install("coverage", "pytest")
     install(session)
 
     session.run(
-        "pytest", "src/landlab_parallel", "tests", "--pyargs", "--doctest-modules"
+        "coverage",
+        "run",
+        "--branch",
+        "--source=landlab_parallel,tests",
+        "--module",
+        "pytest",
     )
+    session.run("coverage", "report", "--ignore-errors", "--show-missing")
+    session.run("coverage", "xml", "-o", "coverage.xml")
 
 
 @nox.session
