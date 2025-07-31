@@ -10,10 +10,10 @@ from numpy.typing import NDArray
 
 from landlab_parallel.io import pvtu_dump
 from landlab_parallel.io import vtu_dump
-from landlab_parallel.landlab_parallel import D4Tiler
-from landlab_parallel.landlab_parallel import OddRTiler
-from landlab_parallel.landlab_parallel import Tile
 from landlab_parallel.landlab_parallel import create_landlab_grid
+from landlab_parallel.tiler import D4Tiler
+from landlab_parallel.tiler import OddRTiler
+from landlab_parallel.tiler import Tile
 
 
 def run(shape, mode="odd-r", seed=None):
