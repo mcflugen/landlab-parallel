@@ -62,10 +62,8 @@ def coverage(session: nox.Session) -> None:
         env={"COVERAGE_CORE": "sysmon"},
     )
 
-    if "CI" in os.environ:
-        session.run("coverage", "xml", "-o", os.path.join(ROOT, "coverage.xml"))
-    else:
-        session.run("coverage", "report", "--ignore-errors", "--show-missing")
+    session.run("coverage", "report", "--ignore-errors", "--show-missing")
+    session.run("coverage", "xml", "-o", "coverage.xml")
 
 
 @nox.session
