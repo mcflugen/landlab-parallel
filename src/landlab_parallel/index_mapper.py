@@ -23,6 +23,15 @@ class IndexMapper:
             Shape of the full domain.
         submatrix : tuple of tuple of int, optional
             Lower and upper bounds for each dimension.
+
+        Examples
+        --------
+        >>> from landlab_parallel.index_mapper import IndexMapper
+        >>> mapper = IndexMapper((4, 5), [(2, 4), (2, 5)])
+        >>> mapper.local_to_global([0, 1, 2, 3, 4, 5])
+        array([12, 13, 14, 17, 18, 19])
+        >>> mapper.global_to_local([12, 13, 14, 17, 18, 19])
+        array([0, 1, 2, 3, 4, 5])
         """
         self._shape = tuple(shape)
         if submatrix is None:
