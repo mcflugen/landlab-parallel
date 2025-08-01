@@ -1,5 +1,6 @@
 # FI_PROVIDER=tcp mpiexec -n 4 python run_test.py
 import argparse
+import os
 
 import numpy as np
 from landlab.components import FlowAccumulator
@@ -142,14 +143,15 @@ def main():
 
 
 def print_output(array):
-    import matplotlib.pyplot as plt
-    import tabulate
+    if os.getenv("CI") == "true":
+        import tabulate
 
-    if True:
+        print(tabulate.tabulate(array))
+    else:
+        import matplotlib.pyplot as plt
+
         plt.imshow(array)
         plt.show()
-    else:
-        print(tabulate.tabulate(array))
 
 
 def transform_values(d: dict[int, NDArray], xform, inplace=False):
