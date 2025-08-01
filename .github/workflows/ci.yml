@@ -54,6 +54,35 @@ jobs:
           name: build-sdist
           path: ${{ github.workspace }}/dist/
 
+  example:
+    needs: build-sdist
+    runs-on: ${{ matrix.os }}
+
+    defaults:
+      run:
+        shell: bash -l {0}
+
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python-version: ["3.11", "3.12", "3.13"]
+      fail-fast: false
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: conda-incubator/setup-miniconda@v3
+        with:
+          python-version: ${{ matrix.python-version }}
+          miniforge-variant: Miniforge3
+          miniforge-version: latest
+          auto-update-conda: true
+          channels: conda-forge,defaults
+
+      - name: Run the example
+        run: |
+          pip install nox
+          nox -s run-example
+
   test:
     needs: build-sdist
     runs-on: ${{ matrix.os }}
