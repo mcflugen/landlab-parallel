@@ -40,19 +40,10 @@ def install(session: nox.Session) -> None:
 @nox.session
 def test(session: nox.Session) -> None:
     """Run the tests."""
-    session.install("coverage", "pytest")
+    session.install("pytest")
     install(session)
 
-    session.run(
-        "coverage",
-        "run",
-        "--branch",
-        "--source=landlab_parallel,tests",
-        "--module",
-        "pytest",
-    )
-    session.run("coverage", "report", "--ignore-errors", "--show-missing")
-    session.run("coverage", "xml", "-o", "coverage.xml")
+    session.run("pytest", "--doctest-modules", "--pyargs", "landlab_parallel")
 
 
 @nox.session
@@ -67,7 +58,6 @@ def coverage(session: nox.Session) -> None:
         "-m",
         "pytest",
         "src/landlab_parallel",
-        "tests",
         "--doctest-modules",
         env={"COVERAGE_CORE": "sysmon"},
     )
