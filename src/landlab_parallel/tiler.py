@@ -181,6 +181,21 @@ class Tiler(Mapping, ABC):
         """
         raise NotImplementedError("get_tile_bounds")
 
+    def get_tile_size(self, tile: int) -> int:
+        """Get the number of elements in a tile.
+
+        Parameters
+        ----------
+        tile : int
+            Identifier of the tile.
+
+        Returns
+        -------
+        int
+            The number of elements in the tile.
+        """
+        return np.prod([slice_.stop - slice_.start for slice_ in self[tile]])
+
     def scatter(self, data: ArrayLike) -> dict[int, NDArray]:
         """Split an array by tile.
 

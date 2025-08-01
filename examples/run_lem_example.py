@@ -104,7 +104,7 @@ def run(shape, mode="odd-r", seed=None):
     if RANK == 0:
         tile_data = {0: grid.at_node["topographic__elevation"]}
         for rank in range(1, n_partitions):
-            tile_data[rank] = tiler.empty(rank, dtype=float)
+            tile_data[rank] = np.empty(tiler.get_tile_size(rank), dtype=float)
             comm.Recv(tile_data[rank], source=rank, tag=0)
 
         print_output(tiler.gather(tile_data))
