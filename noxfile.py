@@ -67,6 +67,25 @@ def coverage(session: nox.Session) -> None:
     session.run("coverage", "xml", "-o", "coverage.xml")
 
 
+@nox.session(name="run-example", venv_backend="conda")
+def run_example(session: nox.Session) -> None:
+    session.conda_install("mpi4py", channel=["nodefaults", "conda-forge"])
+    if os.getenv("CI") == "true":
+        session.install("tabulate")
+    session.install("-e", ".")
+
+    session.run(
+        "mpiexec",
+        *("-n", "2"),
+        "python",
+        "examples/run_lem_example.py",
+        "32",
+        "--mode=odd-r",
+        "--seed=1945",
+        env={"FI_PROVIDER": "tcp"},
+    )
+
+
 @nox.session
 def lint(session: nox.Session) -> None:
     """Look for lint."""
