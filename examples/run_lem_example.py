@@ -6,6 +6,7 @@ import numpy as np
 from landlab.components import FlowAccumulator
 from landlab.components import LinearDiffuser
 from landlab.components import StreamPowerEroder
+from landlab.grid.nodestatus import NodeStatus
 from numpy.typing import ArrayLike
 from numpy.typing import NDArray
 
@@ -29,6 +30,9 @@ def run(shape, mode="odd-r", seed=None):
         elevation = rng.uniform(size=shape)
         uplift_rate = np.zeros_like(elevation)
         uplift_rate[1:-1, 1:-1] = 0.004
+        status_at_node = np.full_like(elevation, NodeStatus.CORE, dtype=np.uint8)
+        status_at_node[:, (0, -1)] = NodeStatus.FIXED_VALUE
+        status_at_node[(0, -1), :] = NodeStatus.FIXED_VALUE
 
         if mode == "odd-r":
             tiler = OddRTiler.from_pymetis(shape, n_partitions, halo=2)
@@ -44,6 +48,7 @@ def run(shape, mode="odd-r", seed=None):
             comm.Send(tile.flatten(), dest=_rank, tag=2)
             comm.Send(tiler.scatter(elevation)[_rank].flatten(), dest=_rank, tag=3)
             comm.Send(tiler.scatter(uplift_rate)[_rank].flatten(), dest=_rank, tag=4)
+            comm.Send(tiler.scatter(status_at_node)[_rank].flatten(), dest=_rank, tag=5)
 
         tile = tiler.getvalue(RANK)
         tile_shape = np.array(tile.shape, dtype="i")
@@ -51,6 +56,7 @@ def run(shape, mode="odd-r", seed=None):
         partition = np.asarray(tile, dtype=int)
         elevation = tiler.scatter(elevation)[RANK]
         uplift_rate = tiler.scatter(uplift_rate)[RANK]
+        status_at_node = tiler.scatter(status_at_node)[RANK]
     else:
         tile_shape = np.empty(2, dtype="i")
         ij_of_lower_left = np.empty(2, dtype="i")
@@ -60,9 +66,11 @@ def run(shape, mode="odd-r", seed=None):
         partition = np.empty(tile_shape, dtype=int)
         elevation = np.empty(tile_shape, dtype=float)
         uplift_rate = np.empty(tile_shape, dtype=float)
+        status_at_node = np.empty(tile_shape, dtype=np.uint8)
         comm.Recv(partition.reshape(-1), source=0, tag=2)
         comm.Recv(elevation.reshape(-1), source=0, tag=3)
         comm.Recv(uplift_rate.reshape(-1), source=0, tag=4)
+        comm.Recv(status_at_node.reshape(-1), source=0, tag=5)
 
     my_tile = Tile(ij_of_lower_left, shape, partition, id_=RANK, mode=mode)
 
@@ -79,6 +87,9 @@ def run(shape, mode="odd-r", seed=None):
         id_=RANK,
         mode=mode,
     )
+    my_nodes = (partition == RANK).reshape(-1)
+    status_at_node.shape = (-1,)
+    grid.status_at_node[my_nodes] = status_at_node[my_nodes]
 
     grid.add_field("topographic__elevation", elevation, at="node")
     grid.add_field("uplift_rate", uplift_rate, at="node")
