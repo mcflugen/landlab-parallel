@@ -280,7 +280,7 @@ class D4Tiler(Tiler):
     ...     [3, 3, 2, 2, 1],
     ...     [3, 3, 2, 2, 2],
     ... ]
-    >>> tiler = D4Tiler(partitions)
+    >>> tiler = D4Tiler(partitions, halo=1)
     >>> len(tiler)
     4
     >>> tiler.getvalue(0)
