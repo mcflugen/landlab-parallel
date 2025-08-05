@@ -48,7 +48,7 @@ def create_landlab_grid(
             (ij_of_lower_left[1] + shift) * spacing,
             ij_of_lower_left[0] * spacing * np.sqrt(3.0) / 2.0,
         )
-    elif mode == "raster":
+    elif mode in ("d4", "raster"):
         xy_of_lower_left = tuple(np.multiply(ij_of_lower_left, spacing))
 
     if mode in ("d4", "raster"):
