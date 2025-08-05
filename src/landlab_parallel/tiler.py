@@ -91,13 +91,15 @@ class Tile:
 class Tiler(Mapping, ABC):
     """Base class for tiling utilities."""
 
-    def __init__(self, partitions: ArrayLike):
+    def __init__(self, partitions: ArrayLike, halo: int = 0):
         """Initialize the tiler.
 
         Parameters
         ----------
         partitions : array_like
             Partition matrix describing ownership of each node.
+        halo : int
+            The size of the halo of nodes to include in the tile.
         """
         self._partitions = np.asarray(partitions)
         self._shape = self._partitions.shape
@@ -105,7 +107,7 @@ class Tiler(Mapping, ABC):
         self._tiles = {
             int(tile): tuple(
                 slice(*bound)
-                for bound in self.get_tile_bounds(self._partitions, tile, halo=1)
+                for bound in self.get_tile_bounds(self._partitions, tile, halo=halo)
             )
             for tile in np.unique(self._partitions)
         }
@@ -278,7 +280,7 @@ class D4Tiler(Tiler):
     ...     [3, 3, 2, 2, 1],
     ...     [3, 3, 2, 2, 2],
     ... ]
-    >>> tiler = D4Tiler(partitions)
+    >>> tiler = D4Tiler(partitions, halo=1)
     >>> len(tiler)
     4
     >>> tiler.getvalue(0)
