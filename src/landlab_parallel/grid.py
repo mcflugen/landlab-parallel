@@ -70,6 +70,7 @@ def create_landlab_grid(
     is_ghost_node = get_ghosts(~is_their_node).reshape(-1)
     is_their_node.shape = (-1,)
 
+    grid.status_at_node.fill(landlab.NodeStatus.CORE)
     grid.status_at_node[is_their_node] = np.where(
         is_ghost_node[is_their_node],
         landlab.NodeStatus.FIXED_VALUE,
