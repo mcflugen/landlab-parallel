@@ -42,7 +42,7 @@ from landlab_parallel.tiler import D4Tiler
     ],
 )
 def test_get_tile_size(partitions, expected):
-    assert D4Tiler(partitions).get_tile_size(0) == expected
+    assert D4Tiler(partitions, halo=1).get_tile_size(0) == expected
 
 
 @pytest.mark.parametrize("halo", (0, 1, 2, 3))
