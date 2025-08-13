@@ -25,7 +25,7 @@ class Tile:
         shape: tuple[int, ...],
         partitions: ArrayLike,
         id_: int,
-        mode: str = "raster",
+        mode: str = "d4",
     ):
         """Create a tile.
 
@@ -39,7 +39,7 @@ class Tile:
             Partition matrix describing ownership of each node.
         id_ : int
             Identifier of the local tile.
-        mode : {"d4", "d8", "odd-r", "raster"}, optional
+        mode : {"d4", "d8", "odd-r"}, optional
             Connectivity scheme used to determine neighbors.
         """
         self._shape = tuple(shape)
