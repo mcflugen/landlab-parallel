@@ -13,7 +13,7 @@ def create_landlab_grid(
     spacing: float | tuple[float, float] = 1.0,
     ij_of_lower_left: tuple[int, int] = (0, 0),
     id_: int = 0,
-    mode="raster",
+    mode="d4",
 ) -> landlab.ModelGrid:
     """Create a Landlab grid from a partition matrix.
 
@@ -27,7 +27,7 @@ def create_landlab_grid(
         Index of the lower-left node of the tile within the full grid.
     id_ : int, optional
         Identifier of the local tile.
-    mode : {"raster", "odd-r", "d4"}, optional
+    mode : {"odd-r", "d4"}, optional
         Grid type describing connectivity.
 
     Returns
@@ -48,10 +48,10 @@ def create_landlab_grid(
             (ij_of_lower_left[1] + shift) * spacing,
             ij_of_lower_left[0] * spacing * np.sqrt(3.0) / 2.0,
         )
-    elif mode == "raster":
+    elif mode == "d4":
         xy_of_lower_left = tuple(np.multiply(ij_of_lower_left, spacing))
 
-    if mode in ("d4", "raster"):
+    if mode == "d4":
         grid = landlab.RasterModelGrid(
             is_their_node.shape,
             xy_spacing=spacing,
