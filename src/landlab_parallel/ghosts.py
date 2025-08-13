@@ -16,7 +16,7 @@ def get_my_ghost_nodes(
         Partition matrix describing ownership of each node.
     my_id : int, optional
         Identifier of the local partition.
-    mode : {"d4", "d8", "odd-r", "raster"}, optional
+    mode : {"d4", "d8", "odd-r"}, optional
         Connectivity scheme used to determine neighbors.
 
     Returns
@@ -39,7 +39,6 @@ def get_my_ghost_nodes(
         "d4": _d4_ghosts,
         "d8": _d8_ghosts,
         "odd-r": _odd_r_ghosts,
-        "raster": _d4_ghosts,
     }
     try:
         get_ghosts = mode_handlers[mode]
