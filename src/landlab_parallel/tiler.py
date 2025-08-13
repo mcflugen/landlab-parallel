@@ -242,7 +242,7 @@ class Tiler(Mapping, ABC):
         return out
 
     @classmethod
-    def from_pymetis(cls, shape: tuple[int, int], n_tiles: int) -> Self:
+    def from_pymetis(cls, shape: tuple[int, int], n_tiles: int, halo: int = 0) -> Self:
         """Partition ``shape`` into ``n_tiles`` using PyMetis.
 
         Parameters
@@ -251,6 +251,8 @@ class Tiler(Mapping, ABC):
             Shape of the grid to partition.
         n_tiles : int
             Desired number of tiles.
+        halo : int
+            The size of the halo of nodes to include in the tile.
 
         Returns
         -------
@@ -259,7 +261,7 @@ class Tiler(Mapping, ABC):
         """
         _, partitions = pymetis.part_graph(n_tiles, adjacency=cls.get_adjacency(shape))
 
-        return cls(np.asarray(partitions).reshape(shape))
+        return cls(np.asarray(partitions).reshape(shape), halo=halo)
 
     @classmethod
     def get_adjacency(cls, shape: tuple[int, int]) -> list[list[int]]:
