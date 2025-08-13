@@ -118,29 +118,23 @@ jobs:
 
   coverage:
     needs: build-sdist
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
 
     defaults:
       run:
         shell: bash -l {0}
-
-    strategy:
-      matrix:
-        os: [ubuntu-latest]
-        python-version: ["3.11", "3.12", "3.13"]
-      fail-fast: false
 
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.13"
 
       - name: Test
         run: |
           pip install nox
-          nox --non-interactive --error-on-missing-interpreter -s test
+          nox --non-interactive --error-on-missing-interpreter -s coverage
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v5
