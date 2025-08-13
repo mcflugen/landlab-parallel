@@ -54,3 +54,9 @@ def test_tiler_halo(halo):
     tiler = D4Tiler(partitions, halo=halo)
     assert tiler.get_tile_size(0) == n**2
     assert tiler.getvalue(0).shape == (n, n)
+
+
+@pytest.mark.parametrize("halo", (0, 1, 2, 3))
+def test_tiler_halo_with_pymetis(halo):
+    tiler = D4Tiler.from_pymetis((32, 32), 2, halo=halo)
+    assert len(tiler) == 2
