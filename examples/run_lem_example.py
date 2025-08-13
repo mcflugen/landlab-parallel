@@ -132,7 +132,7 @@ class Uplift:
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("size", type=int, help="Size of the grid")
-    parser.add_argument("--mode", choices=("raster", "odd-r"), help="Grid type")
+    parser.add_argument("--mode", choices=("d4", "odd-r"), help="Grid type")
     parser.add_argument(
         "--seed", type=int, default=None, help="Random seed for initial elevations"
     )
