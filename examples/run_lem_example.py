@@ -31,9 +31,9 @@ def run(shape, mode="odd-r", seed=None):
         uplift_rate[1:-1, 1:-1] = 0.004
 
         if mode == "odd-r":
-            tiler = OddRTiler.from_pymetis(shape, n_partitions)
+            tiler = OddRTiler.from_pymetis(shape, n_partitions, halo=2)
         else:
-            tiler = D4Tiler.from_pymetis(shape, n_partitions)
+            tiler = D4Tiler.from_pymetis(shape, n_partitions, halo=2)
 
         for _rank in range(1, n_partitions):
             ij_of_lower_left = np.asarray([s.start for s in tiler[_rank]], dtype="i")
