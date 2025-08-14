@@ -34,6 +34,15 @@ def create_landlab_grid(
     -------
     landlab.ModelGrid
         The constructed grid with boundary conditions set.
+
+    Notes
+    -----
+    The `status_at_node` array for the new grid is initialized as follows:
+
+    * Nodes owned by the partition are assigned ``NodeStatus.CORE``.
+    * Nodes shared with another grid (i.e., ghost nodes) are assigned
+      ``NodeStatus.FIXED_VALUE``.
+    * Nodes owned by other partitions are assigned ``NodeStatus.CLOSED``.
     """
     is_their_node = np.asarray(partitions) != id_
 
@@ -70,6 +79,7 @@ def create_landlab_grid(
     is_ghost_node = get_ghosts(~is_their_node).reshape(-1)
     is_their_node.shape = (-1,)
 
+    grid.status_at_node.fill(landlab.NodeStatus.CORE)
     grid.status_at_node[is_their_node] = np.where(
         is_ghost_node[is_their_node],
         landlab.NodeStatus.FIXED_VALUE,
