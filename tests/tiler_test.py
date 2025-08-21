@@ -1,7 +1,9 @@
 import numpy as np
 import pytest
+from numpy.testing import assert_array_equal
 
 from landlab_parallel.tiler import D4Tiler
+from landlab_parallel.tiler import Tile
 
 
 @pytest.mark.parametrize(
@@ -60,3 +62,22 @@ def test_tiler_halo(halo):
 def test_tiler_halo_with_pymetis(halo):
     tiler = D4Tiler.from_pymetis((32, 32), 2, halo=halo)
     assert len(tiler) == 2
+
+
+def test_tile():
+    tile = Tile(
+        (0, 0),
+        (64, 64),
+        [
+            [1, 1, 1, 2, 2],
+            [1, 1, 2, 2, 2],
+            [1, 2, 2, 2, 3],
+        ],
+        1,
+    )
+    expected = {2: [3, 7, 11]}
+    actual = tile._ghost_nodes
+
+    assert actual.keys() == expected.keys()
+    for owner in tile._ghost_nodes:
+        assert_array_equal(actual[owner], expected[owner])
