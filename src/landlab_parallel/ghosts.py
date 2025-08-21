@@ -50,6 +50,39 @@ def is_ghost(partitions: ArrayLike, mode: str = "d4") -> NDArray[np.bool_]:
     return get_ghosts(partitions)
 
 
+def is_ghost_of_partition(
+    partitions: ArrayLike, partition: int, mode: str = "d4"
+) -> NDArray[np.bool_]:
+    """Identify nodes that are ghosts of a given partition.
+
+    Parameters
+    ----------
+    partitions : array_like
+        Partition matrix describing ownership of each node.
+    partition : int
+        Identifier of the local partition.
+    mode : {"d4", "d8", "odd-r"}, optional
+        Connectivity scheme used to determine neighbors.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> partitions = np.asarray(
+    ...     [
+    ...         [0, 0, 0, 1, 2, 2, 2],
+    ...         [0, 0, 1, 1, 1, 2, 2],
+    ...         [0, 1, 1, 1, 1, 1, 2],
+    ...     ]
+    ... )
+    >>> is_ghost_of_partition(partitions, 1).astype(int)
+    array([[0, 0, 1, 0, 1, 0, 0],
+           [0, 1, 0, 0, 0, 1, 0],
+           [1, 0, 0, 0, 0, 0, 1]])
+    """
+    is_local_partition = np.asarray(partitions) == partition
+    return is_ghost(is_local_partition, mode=mode) & (~is_local_partition)
+
+
 def get_my_ghost_nodes(
     partitions: ArrayLike, my_id: int = 0, mode: str = "d4"
 ) -> dict[int, NDArray[np.int_]]:
