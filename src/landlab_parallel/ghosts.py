@@ -5,6 +5,51 @@ from numpy.typing import ArrayLike
 from numpy.typing import NDArray
 
 
+def is_ghost(partitions: ArrayLike, mode: str = "d4") -> NDArray[np.bool_]:
+    """Identify nodes that are ghosts of another partition.
+
+    A ghost node is a node that is connected to a node owned
+    by another partition.
+
+    Parameters
+    ----------
+    partitions : array_like
+        Partition matrix describing ownership of each node.
+    mode : {"d4", "d8", "odd-r"}, optional
+        Connectivity scheme used to determine neighbors.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> partitions = np.asarray(
+    ...     [
+    ...         [0, 0, 0, 1, 2, 2, 2],
+    ...         [0, 0, 1, 1, 1, 2, 2],
+    ...         [0, 1, 1, 1, 1, 1, 2],
+    ...     ]
+    ... )
+    >>> is_ghost(partitions).astype(int)
+    array([[0, 0, 1, 1, 1, 0, 0],
+           [0, 1, 1, 0, 1, 1, 0],
+           [1, 1, 0, 0, 0, 1, 1]])
+    """
+    mode_handlers = {
+        "d4": _d4_ghosts,
+        "d8": _d8_ghosts,
+        "odd-r": _odd_r_ghosts,
+    }
+
+    try:
+        get_ghosts = mode_handlers[mode]
+    except KeyError:
+        valid_choices = ", ".join(repr(key) for key in sorted(mode_handlers))
+        raise ValueError(
+            f"Mode not understood. Must be one of {valid_choices} but got {mode!r}."
+        )
+
+    return get_ghosts(partitions)
+
+
 def get_my_ghost_nodes(
     partitions: ArrayLike, my_id: int = 0, mode: str = "d4"
 ) -> dict[int, NDArray[np.int_]]:
@@ -35,27 +80,14 @@ def get_my_ghost_nodes(
     >>> {int(rank): nodes.tolist() for rank, nodes in result.items()}
     {1: [2, 4], 2: [6]}
     """
-    mode_handlers = {
-        "d4": _d4_ghosts,
-        "d8": _d8_ghosts,
-        "odd-r": _odd_r_ghosts,
-    }
-    try:
-        get_ghosts = mode_handlers[mode]
-    except KeyError:
-        valid_choices = ", ".join(repr(key) for key in sorted(mode_handlers))
-        raise ValueError(
-            f"Mode not understood. Must be one of {valid_choices} but got {mode!r}."
-        )
-
     partitions_array = np.asarray(partitions)
     is_my_node = partitions_array == my_id
-    is_ghost = get_ghosts(is_my_node)
-    neighbors = np.unique(partitions_array[~is_my_node & is_ghost])
+    _is_ghost = is_ghost(is_my_node, mode=mode)
+    neighbors = np.unique(partitions_array[~is_my_node & _is_ghost])
 
     return {
         rank: np.ravel_multi_index(
-            np.nonzero(is_ghost & (partitions_array == rank)), partitions_array.shape
+            np.nonzero(_is_ghost & (partitions_array == rank)), partitions_array.shape
         )
         for rank in neighbors
     }
