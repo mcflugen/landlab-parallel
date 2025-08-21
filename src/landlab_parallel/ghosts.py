@@ -120,7 +120,7 @@ def is_non_ghost_of_partition(
     return ~is_ghost(is_local_partition, mode=mode) & is_local_partition
 
 
-def get_my_ghost_nodes(
+def get_ghosts_by_owner(
     partitions: ArrayLike, my_id: int = 0, mode: str = "d4"
 ) -> dict[int, NDArray[np.int_]]:
     """Return ghost node indices for a given partition.
@@ -146,7 +146,7 @@ def get_my_ghost_nodes(
     ...     [0, 1, 1],
     ...     [2, 2, 1],
     ... ]
-    >>> result = get_my_ghost_nodes(partitions, my_id=0)
+    >>> result = get_ghosts_by_owner(partitions, my_id=0)
     >>> {int(rank): nodes.tolist() for rank, nodes in result.items()}
     {1: [2, 4], 2: [6]}
     """
