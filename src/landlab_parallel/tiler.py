@@ -12,7 +12,7 @@ from numpy.typing import NDArray
 
 from landlab_parallel.adjacency import _get_d4_adjacency
 from landlab_parallel.adjacency import _get_odd_r_adjacency
-from landlab_parallel.ghosts import get_my_ghost_nodes
+from landlab_parallel.ghosts import get_ghosts_by_owner
 from landlab_parallel.index_mapper import IndexMapper
 
 
@@ -54,7 +54,7 @@ class Tile:
             ],
         )
 
-        self._ghost_nodes = get_my_ghost_nodes(self._partitions, my_id=id_, mode=mode)
+        self._ghost_nodes = get_ghosts_by_owner(self._partitions, my_id=id_, mode=mode)
 
     def local_to_global(self, indices: ArrayLike) -> NDArray[np.int_]:
         """Convert local node indices to global indices.
