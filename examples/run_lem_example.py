@@ -74,7 +74,9 @@ def run(shape, mode="odd-r", seed=None):
 
     my_tile = Tile(ij_of_lower_left, shape, partition, id_=RANK, mode=mode)
 
-    my_ghosts = transform_values(my_tile._ghost_nodes, my_tile.local_to_global)
+    my_ghosts = transform_values(
+        dict(my_tile.get_ghost_nodes_by_owner()), my_tile.local_to_global
+    )
     their_ghosts = send_receive_ghost_ids(comm, my_ghosts)
 
     my_ghosts = transform_values(my_ghosts, my_tile.global_to_local)
