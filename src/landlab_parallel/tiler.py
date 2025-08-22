@@ -57,6 +57,24 @@ class Tile:
         self._ghost_nodes = get_ghosts_by_owner(self._partitions, my_id=id_, mode=mode)
 
     def get_ghost_nodes_by_owner(self) -> tuple[tuple[int, NDArray[np.int_]], ...]:
+        """Get ghost-node indices grouped by their owning partition.
+
+        Get the *ghost nodes* needed by the current partition (i.e., nodes not
+        owned locally but required to assemble/connect elements on the partition
+        boundary) and groups them by the neighboring partition that owns them.
+        The node IDs those of the current partition.
+
+        Returns
+        -------
+        tuple of (int, ndarray)
+            A tuple where each item is a pair ``(owner, nodes)``:
+
+            - ``owner`` : int
+                Identifier (e.g., rank/partition ID) of the neighboring partition
+                that owns the nodes.
+            - ``nodes`` : ndarray of int, shape (N,)
+                One-dimensional array of ghost node IDs owned by ``owner``.
+        """
         return tuple(
             (int(owner), nodes.copy()) for owner, nodes in self._ghost_nodes.items()
         )
