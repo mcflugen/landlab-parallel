@@ -75,9 +75,11 @@ def test_tile():
         ],
         1,
     )
-    expected = {2: [3, 7, 11]}
-    actual = tile._ghost_nodes
+    expected = ((2, [3, 7, 11]),)
+    actual = tile.get_ghost_nodes_by_owner()
 
-    assert actual.keys() == expected.keys()
-    for owner in tile._ghost_nodes:
-        assert_array_equal(actual[owner], expected[owner])
+    assert len(actual) == len(expected)
+    for actual_item, expected_item in zip(actual, expected):
+        assert len(actual_item) == len(expected_item)
+        assert actual_item[0] == expected_item[0]
+        assert_array_equal(actual_item[1], expected_item[1])
