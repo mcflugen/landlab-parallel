@@ -56,6 +56,11 @@ class Tile:
 
         self._ghost_nodes = get_ghosts_by_owner(self._partitions, my_id=id_, mode=mode)
 
+    def get_ghost_nodes_by_owner(self) -> tuple[tuple[int, NDArray[np.int_]], ...]:
+        return tuple(
+            (int(owner), nodes.copy()) for owner, nodes in self._ghost_nodes.items()
+        )
+
     def local_to_global(self, indices: ArrayLike) -> NDArray[np.int_]:
         """Convert local node indices to global indices.
 
