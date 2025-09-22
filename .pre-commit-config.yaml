@@ -71,4 +71,5 @@ repos:
   - id: mypy
     language_version: python3.12
     additional_dependencies: [numpy]
-    files: landlab_parallel\.py$
+    types: [python]
+    files: ^src/landlab_parallel/

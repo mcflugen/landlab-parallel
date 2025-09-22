@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from typing import Any
 
 import numpy as np
-from numpy.typing import ArrayLike
 from numpy.typing import DTypeLike
 
 
 def build_csr_array(
-    rows: Sequence[ArrayLike],
+    rows: Sequence[Sequence[Any]],
     dtype: DTypeLike = None,
 ):
     """Represent a jagged array in compressed sparse row form.
