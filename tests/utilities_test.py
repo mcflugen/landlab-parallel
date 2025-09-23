@@ -3,6 +3,7 @@ import pytest
 from numpy.testing import assert_array_equal
 
 from landlab_parallel.utilities import build_csr_array
+from landlab_parallel.utilities import map_reverse_pairs
 from landlab_parallel.utilities import roll_values
 
 
@@ -94,3 +95,77 @@ def test_roll_keeps_type(dtype, direction):
 def test_roll_invalid_side_raises(direction):
     with pytest.raises(ValueError):
         roll_values([0, 2], [1, 2], direction=direction)
+
+
+def test_map_reverse():
+    pairs = [
+        [0, 1],
+        [1, 2],
+        [1, 0],
+        [2, 1],
+    ]
+    assert_array_equal(map_reverse_pairs(pairs), [2, 3, 0, 1])
+
+
+def test_map_reverse_with_multiple_reverse_pairs():
+    pairs = [
+        [0, 1],
+        [1, 2],
+        [1, 0],
+        [2, 1],
+        [1, 0],
+    ]
+    assert_array_equal(map_reverse_pairs(pairs), [2, 3, 0, 1, 0])
+
+
+def test_map_reverse_to_sleft():
+    pairs = [
+        [0, 1],
+        [1, 2],
+        [1, 0],
+        [2, 1],
+        [1, 1],
+    ]
+    assert_array_equal(map_reverse_pairs(pairs), [2, 3, 0, 1, 4])
+
+
+def test_map_reverse_with_missing_error():
+    pairs = [
+        [0, 1],
+        [1, 2],
+        [2, 1],
+    ]
+    with pytest.raises(ValueError):
+        map_reverse_pairs(pairs, if_missing="raise")
+    with pytest.raises(ValueError):
+        map_reverse_pairs(pairs)
+
+
+@pytest.mark.parametrize("fill_value", [-1, -999, 9999, "ignore"])
+def test_map_reverse_with_missing_fill(fill_value):
+    pairs = [
+        [0, 1],
+        [1, 2],
+        [2, 1],
+    ]
+    assert_array_equal(
+        map_reverse_pairs(pairs, if_missing=fill_value),
+        [-1 if fill_value == "ignore" else fill_value, 2, 1],
+    )
+
+
+def test_map_reverse_empty():
+    actual = map_reverse_pairs([])
+    assert_array_equal(actual, [])
+    assert actual.dtype == np.int64
+
+
+@pytest.mark.parametrize("if_missing", (None, "", "raisefoo", " ignore"))
+def test_map_reverse_with_bad_keyword(if_missing):
+    pairs = [
+        [0, 1],
+        [1, 2],
+        [2, 1],
+    ]
+    with pytest.raises(ValueError):
+        map_reverse_pairs(pairs, if_missing=if_missing)
