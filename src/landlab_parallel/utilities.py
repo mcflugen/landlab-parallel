@@ -121,3 +121,67 @@ def roll_values(
         raise ValueError(f"direction must be either 'left' or 'right' ({direction!r})")
 
     return out
+
+
+def map_reverse_pairs(
+    pairs: ArrayLike,
+    if_missing: Literal["raise", "ignore"] | int = "raise",
+) -> NDArray[np.int64]:
+    """Map each pair (a, b) to its reverse (b, a).
+
+    Parameters
+    ----------
+    pairs : array_like of int or shape (n_pairs, 2)
+        Pairs of integers.
+    if_missing : {"raise", "ignore"} or int, optional
+        What to do if a pair's reverse is missing:
+        - "raise": raise ValueError
+        - "ignore": leave as -1
+        - int: fill missing entries with this integer
+
+    Returns
+    -------
+    ndarray[int64]
+        For each pair i, the index j such that (pairs[i,:] -> pairs[j, ::-1]).
+    """
+    int_pair = np.dtype([("tail", np.int64), ("head", np.int64)])
+
+    pairs = np.ascontiguousarray(pairs, dtype=np.int64)
+    pairs = pairs.view(dtype=int_pair).reshape(-1)
+
+    if if_missing in ("ignore", "raise"):
+        fill_value = -1
+    elif isinstance(if_missing, int):
+        fill_value = if_missing
+    else:
+        raise ValueError(
+            "bad value for if_missing keyword, must be 'ignore', 'raise' or an integer"
+            f" ({if_missing!r})"
+        )
+
+    n_pairs = pairs.shape[0]
+
+    reversed_pairs = np.empty_like(pairs)
+    reversed_pairs["tail"] = pairs["head"]
+    reversed_pairs["head"] = pairs["tail"]
+
+    sorted_indices = np.argsort(pairs)
+    sorted_pairs = pairs[sorted_indices]
+
+    indices = np.searchsorted(sorted_pairs, reversed_pairs)
+
+    found = np.zeros(n_pairs, dtype=bool)
+
+    has_a_reverse = indices < n_pairs
+    found[has_a_reverse] = (
+        sorted_pairs[indices[has_a_reverse]] == reversed_pairs[has_a_reverse]
+    )
+
+    out = np.full(n_pairs, fill_value, dtype=np.int64)
+    if np.any(found):
+        out[found] = sorted_indices[indices[found]]
+
+    if if_missing == "raise" and not np.all(found):
+        raise ValueError("Some pairs have no reverse.")
+
+    return out
