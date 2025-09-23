@@ -2,9 +2,12 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from typing import Any
+from typing import Literal
 
 import numpy as np
+from numpy.typing import ArrayLike
 from numpy.typing import DTypeLike
+from numpy.typing import NDArray
 
 
 def build_csr_array(
@@ -72,3 +75,49 @@ def build_csr_array(
         values[offset_to_row[row] : offset_to_row[row + 1]] = rows[row]
 
     return offset_to_row, values
+
+
+def roll_values(
+    offset_to_row: ArrayLike, values: ArrayLike, direction: Literal["left", "right"]
+) -> NDArray:
+    """Roll the values by one place for each row of a matrix in CSR form.
+
+    Parameters
+    ----------
+    offset_to_row : array_like of int
+        Offsets to rows.
+    values : array_like
+        Array of values to roll.
+    direction : {"left", "right"}
+        Direction to roll values.
+
+    Examples
+    --------
+    >>> roll_values([0, 2, 5], [0, 1, 2, 3, 4], direction="left")
+    array([1, 0, 3, 4, 2])
+    >>> roll_values([0, 2, 5], [0, 1, 2, 3, 4], direction="right")
+    array([1, 0, 4, 2, 3])
+    >>> roll_values([0, 2, 5], [1.0, 2.0, 3.0, 4.0, 5.0], direction="right")
+    array([2., 1., 5., 3., 4.])
+    """
+    offset_to_row = np.asarray(offset_to_row)
+    values = np.asarray(values)
+
+    n_items_per_row = np.diff(offset_to_row)
+
+    is_non_empty_row = n_items_per_row > 0
+
+    first_item_at_row = offset_to_row[:-1][is_non_empty_row]
+    last_item_at_row = (offset_to_row[1:] - 1)[is_non_empty_row]
+
+    out = np.empty_like(values)
+    if direction == "right":
+        out[1:] = values[:-1]
+        out[first_item_at_row] = values[last_item_at_row]
+    elif direction == "left":
+        out[:-1] = values[1:]
+        out[last_item_at_row] = values[first_item_at_row]
+    else:
+        raise ValueError(f"direction must be either 'left' or 'right' ({direction!r})")
+
+    return out
