@@ -327,7 +327,7 @@ def is_perimeter_edge(
     adjacency: list[list[int]],
     partitions: NDArray[np.int64],
     target_partition: int,
-    is_global_perimeter: ArrayLike | None = None,
+    is_on_global_perimeter: ArrayLike | None = None,
 ) -> NDArray[np.int64]:
     """Find edges on the perimeter of a partition.
 
@@ -338,8 +338,6 @@ def is_perimeter_edge(
         be in rotational order.
     partitions : array_like of int
         Partition matrix describing ownership of each node.
-    target_partition : int
-        The partition to find the perimeter edges.
 
     Returns
     -------
@@ -385,78 +383,47 @@ def is_perimeter_edge(
     [0, 1, 2, 3, 4, 5, 6, 11, 12, 17, 18, 23, 24, 25, 26, 27, 28, 29]
 
     >>> partitions = np.full((5, 6), 1)
-    >>> is_global_perimeter = np.full_like(partitions, True)
-    >>> is_global_perimeter[1:-1, 1:-1] = False
+    >>> is_on_global_perimeter = np.full_like(partitions, True)
+    >>> is_on_global_perimeter[1:-1, 1:-1] = False
     >>> adjacency = _get_odd_r_adjacency((5, 6))
     >>> edges = is_perimeter_edge(
     ...     adjacency,
     ...     partitions,
     ...     1,
-    ...     is_global_perimeter=is_global_perimeter,
+    ...     is_on_global_perimeter=is_on_global_perimeter,
     ... )
     >>> [int(n) for n in sorted(set(edges.ravel()))]
     [0, 1, 2, 3, 4, 5, 6, 11, 12, 17, 18, 23, 24, 25, 26, 27, 28, 29]
     """
-    indptr, indices = build_csr_array(adjacency)
-
     partitions = np.asarray(partitions).ravel()
-    if is_global_perimeter is not None:
-        is_global_perimeter = np.asarray(is_global_perimeter).ravel()
-    n_nodes = partitions.size
 
-    if n_nodes != len(indptr) - 1:
-        raise ValueError(
-            "number of nodes in the partition matrix doesn't match that of the"
-            f" adjacency array ({n_nodes} != {len(indptr) - 1})"
-        )
+    indptr, indices = build_csr_array(adjacency)
+    n_nodes = len(indptr) - 1
 
     nodes_at_link = np.column_stack(
         (np.repeat(np.arange(n_nodes), np.diff(indptr)), indices)
     )
-    tails = nodes_at_link[:, 0]
-    heads = nodes_at_link[:, 1]
+    tail = nodes_at_link[:, 0]
+    head = nodes_at_link[:, 1]
 
-    left_idx = roll_values(indptr, np.arange(indptr[-1]), direction="right")
-    right_idx = roll_values(indptr, np.arange(indptr[-1]), direction="left")
-    rev_idx = map_reverse_pairs(nodes_at_link, if_missing="raise")
+    indptr = np.asarray(indptr, dtype=np.intp).ravel()
+    is_in_target = partitions == target_partition
 
-    left_of_tail = indices[left_idx]
-    right_of_tail = indices[right_idx]
-    left_of_head = indices[left_idx[rev_idx]]
-    right_of_head = indices[right_idx[rev_idx]]
-
-    in_target = partitions == target_partition
-
-    tail_is_in_target = in_target[tails]
-    head_is_in_target = in_target[heads]
-
-    n_neighbors = indptr[1:] - indptr[:-1]
-    tail_is_missing_wedge = n_neighbors[tails] == 1
-    head_is_missing_wedge = n_neighbors[heads] == 1
-
-    if is_global_perimeter is not None:
-        both_boundary = is_global_perimeter[tails] & is_global_perimeter[heads]
-
-        tail_global_outside = both_boundary & (
-            is_global_perimeter[left_of_tail] | is_global_perimeter[right_of_tail]
+    if tail.shape != head.shape:
+        raise ValueError(
+            f"tail and head must have same shape ({tail.shape} vs {head.shape})"
         )
-        head_global_outside = both_boundary & (
-            is_global_perimeter[left_of_head] | is_global_perimeter[right_of_head]
+
+    both_in = is_in_target[tail] & is_in_target[head]
+
+    left_in = wedge_is_inside_target(indptr, tail, head, is_in_target, side="left")
+    right_in = wedge_is_inside_target(indptr, tail, head, is_in_target, side="right")
+
+    is_perimeter = both_in & (left_in != right_in)
+    if is_on_global_perimeter is not None:
+        is_on_global_perimeter = np.asarray(is_on_global_perimeter, dtype=bool).ravel()
+        is_perimeter |= both_in & (
+            is_on_global_perimeter[tail] & is_on_global_perimeter[head]
         )
-    else:
-        tail_global_outside = head_global_outside = False
 
-    any_wedge_outside = (
-        ~in_target[left_of_tail]
-        | ~in_target[right_of_tail]
-        | ~in_target[left_of_head]
-        | ~in_target[right_of_head]
-        | tail_is_missing_wedge
-        | head_is_missing_wedge
-        | tail_global_outside
-        | head_global_outside
-    )
-
-    is_perimeter = tail_is_in_target & head_is_in_target & any_wedge_outside
-
-    return find_unique_pairs(nodes_at_link[is_perimeter])
+    return unique_pairs(nodes_at_link[is_perimeter])
