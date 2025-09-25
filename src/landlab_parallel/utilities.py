@@ -224,3 +224,69 @@ def unique_pairs(pairs: ArrayLike) -> NDArray:
     records = normalized_pairs.view(pair_dtype).ravel()
 
     return np.unique(records).view(pairs.dtype).reshape((-1, 2))
+
+
+def wedge_is_inside_target(
+    indptr: ArrayLike,
+    tail: ArrayLike,
+    head: ArrayLike,
+    is_in_target: ArrayLike,
+    side: Literal["left", "right"],
+):
+    """
+    Examples
+    --------
+    >>> from landlab_parallel.adjacency import _get_d4_adjacency
+
+    >>> nodes = [
+    ...     [0, 1, 2],
+    ...     [3, 4, 5],
+    ... ]
+    >>> partitions = [
+    ...     [1, 1, 0],
+    ...     [1, 1, 0],
+    ... ]
+    >>> is_in_target = np.asarray(partitions) == 1
+
+    >>> adjacency = _get_d4_adjacency((2, 3))
+    >>> indptr, head = build_csr_array(adjacency)
+    >>> tail = np.repeat(np.arange(6), np.diff(indptr))
+
+    >>> wedge_is_inside_target(indptr, tail, head, is_in_target, side="left").astype(
+    ...     int
+    ... )
+    array([1, 1, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 0])
+    >>> wedge_is_inside_target(indptr, tail, head, is_in_target, side="right").astype(
+    ...     int
+    ... )
+    array([1, 1, 0, 1, 0, 0, 0, 1, 1, 0, 1, 0, 0, 0])
+    """
+    indptr = np.asarray(indptr, dtype=np.intp).ravel()
+    tail = np.asarray(tail, dtype=np.intp).ravel()
+    head = np.asarray(head, dtype=np.intp).ravel()
+    is_in_target = np.asarray(is_in_target, dtype=bool).ravel()
+
+    if side not in ("left", "right"):
+        raise ValueError(f"side must be 'left' or 'right' (got {side!r})")
+    if tail.size != head.size:
+        raise ValueError(
+            f"tail and head must have the same size ({tail.size} vs {head.size})"
+        )
+    if indptr.size == 0:
+        raise ValueError("indptr must be a non-empty 1D array")
+    if tail.size == 0:
+        return np.zeros(0, dtype=bool)
+
+    map_side_to_direction: dict[str, Literal["left", "right"]] = {
+        "left": "right",
+        "right": "left",
+    }
+    neighbor = roll_values(indptr, head, direction=map_side_to_direction[side])
+
+    return np.logical_and.reduce(
+        (
+            is_in_target[tail],
+            is_in_target[head],
+            is_in_target[neighbor],
+        )
+    )
