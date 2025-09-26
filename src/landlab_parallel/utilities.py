@@ -224,3 +224,100 @@ def unique_pairs(pairs: ArrayLike) -> NDArray:
     records = normalized_pairs.view(pair_dtype).ravel()
 
     return np.unique(records).view(pairs.dtype).reshape((-1, 2))
+
+
+def wedge_is_inside_target(
+    indptr: ArrayLike,
+    tail: ArrayLike,
+    head: ArrayLike,
+    is_in_target: ArrayLike,
+    side: Literal["left", "right"],
+):
+    """Determine whether each edge's wedge lies entirely inside a target partition.
+
+    A *wedge* is defined as the triangle formed by an edge and one of its
+    neighboring edges in the adjacency structure. This function checks,
+    for each edge, whether the edge's tail node, head node, and its
+    left- or right-adjacent neighbor node are all marked as being inside
+    the target partition.
+
+    Parameters
+    ----------
+    indptr : (n_nodes + 1,) array_like of int
+        CSR row pointer array. For each node *i*, the neighbors of *i*
+        are stored in ``head[indptr[i]:indptr[i+1]]``.
+    tail : (n_edges,) array_like of int
+        Tail node index for each edge. Must align with ``head``.
+    head : (n_edges,) array_like of int
+        Head node index for each edge. Must align with ``tail``.
+    is_in_target : (n_nodes,) array_like of bool
+        Boolean mask indicating which nodes are in the target partition.
+    side : {'left', 'right'}
+        Which wedge to check. For an edge (tail → head), the wedge is
+        formed with the next neighbor of ``head`` when traversed in the
+        given direction around the adjacency list:
+        - 'left': use the clockwise neighbor (implemented as a roll right)
+        - 'right': use the counter-clockwise neighbor (implemented as a roll left)
+
+    Returns
+    -------
+    inside_wedge : (n_edges,) ndarray of bool
+        Boolean mask indicating, for each edge, whether the wedge defined by
+        (tail, head, neighbor) lies entirely inside the target partition.
+
+    Examples
+    --------
+    >>> from landlab_parallel.adjacency import _get_d4_adjacency
+
+    >>> nodes = [
+    ...     [0, 1, 2],
+    ...     [3, 4, 5],
+    ... ]
+    >>> partitions = [
+    ...     [1, 1, 0],
+    ...     [1, 1, 0],
+    ... ]
+    >>> is_in_target = np.asarray(partitions) == 1
+
+    >>> adjacency = _get_d4_adjacency((2, 3))
+    >>> indptr, head = build_csr_array(adjacency)
+    >>> tail = np.repeat(np.arange(6), np.diff(indptr))
+
+    >>> wedge_is_inside_target(indptr, tail, head, is_in_target, side="left").astype(
+    ...     int
+    ... )
+    array([1, 1, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 0])
+    >>> wedge_is_inside_target(indptr, tail, head, is_in_target, side="right").astype(
+    ...     int
+    ... )
+    array([1, 1, 0, 1, 0, 0, 0, 1, 1, 0, 1, 0, 0, 0])
+    """
+    indptr = np.asarray(indptr, dtype=np.intp).ravel()
+    tail = np.asarray(tail, dtype=np.intp).ravel()
+    head = np.asarray(head, dtype=np.intp).ravel()
+    is_in_target = np.asarray(is_in_target, dtype=bool).ravel()
+
+    if side not in ("left", "right"):
+        raise ValueError(f"side must be 'left' or 'right' (got {side!r})")
+    if tail.size != head.size:
+        raise ValueError(
+            f"tail and head must have the same size ({tail.size} vs {head.size})"
+        )
+    if indptr.size == 0:
+        raise ValueError("indptr must be a non-empty 1D array")
+    if tail.size == 0:
+        return np.zeros(0, dtype=bool)
+
+    map_side_to_direction: dict[str, Literal["left", "right"]] = {
+        "left": "right",
+        "right": "left",
+    }
+    neighbor = roll_values(indptr, head, direction=map_side_to_direction[side])
+
+    return np.logical_and.reduce(
+        (
+            is_in_target[tail],
+            is_in_target[head],
+            is_in_target[neighbor],
+        )
+    )

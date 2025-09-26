@@ -6,6 +6,7 @@ from landlab_parallel.utilities import build_csr_array
 from landlab_parallel.utilities import map_reverse_pairs
 from landlab_parallel.utilities import roll_values
 from landlab_parallel.utilities import unique_pairs
+from landlab_parallel.utilities import wedge_is_inside_target
 
 
 @pytest.mark.parametrize("dtype", [None, int, float, bool, np.uint8, np.float32])
@@ -229,3 +230,62 @@ def test_unique_pairs_multiple_applications_unchanged():
     out_2 = unique_pairs(out_1)
 
     assert_array_equal(out_1, out_2)
+
+
+@pytest.mark.parametrize("side", ("", None, "foo", " left", "right ", "LEFT"))
+def test_wedge_bad_side(side):
+    with pytest.raises(ValueError, match="side must be"):
+        wedge_is_inside_target([0, 1, 2], [1, 0], [0, 1], [True, True], side=side)
+
+
+@pytest.mark.parametrize("side", ("left", "right"))
+@pytest.mark.parametrize(
+    "tail,head",
+    (
+        ([0, 1], [0]),
+        ([0], [0, 1]),
+    ),
+)
+def test_wedge_bad_head_tail_size(side, tail, head):
+    with pytest.raises(ValueError, match="tail and head must have the same size"):
+        wedge_is_inside_target([0, 1, 2], tail, head, [True, True], side=side)
+
+
+@pytest.mark.parametrize("side", ("left", "right"))
+def test_wedge_empty_indptr(side):
+    with pytest.raises(ValueError, match="indptr must be a non-empty"):
+        wedge_is_inside_target([], [0, 1], [1, 0], [True, True], side=side)
+
+
+@pytest.mark.parametrize("side", ("left", "right"))
+def test_wedge_empty_head_tail(side):
+    actual = wedge_is_inside_target([0, 1, 2], [], [], [True, True], side=side)
+    assert_array_equal(actual, [])
+    assert actual.dtype == bool
+
+
+@pytest.mark.parametrize("side", ("left", "right"))
+def test_wedge_all_in(side):
+    indptr = [2, 2, 2, 2]
+    tails = [0, 0, 1, 1, 2, 2, 3, 3]
+    heads = [1, 2, 0, 3, 0, 3, 1, 2]
+
+    actual = wedge_is_inside_target(indptr, tails, heads, [True] * 4, side=side)
+    assert_array_equal(actual, [True] * 8)
+
+
+def test_wedge_left_right():
+    # 1  2  3
+    #  \ | /
+    #    0
+    is_in_target = [True, False, True, True]
+
+    tails = [0, 0, 0, 1, 2, 3]
+    heads = [1, 2, 3, 0, 0, 0]
+    indptr = [0, 3, 4, 5, 6]
+
+    actual = wedge_is_inside_target(indptr, tails, heads, is_in_target, side="left")
+    assert_array_equal(actual[1:3], [False, True])
+
+    actual = wedge_is_inside_target(indptr, tails, heads, is_in_target, side="right")
+    assert_array_equal(actual[0:2], [False, True])
