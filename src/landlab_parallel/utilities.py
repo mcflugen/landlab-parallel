@@ -394,6 +394,30 @@ def is_perimeter_edge(
     ... )
     >>> [int(n) for n in sorted(set(edges.ravel()))]
     [0, 1, 2, 3, 4, 5, 6, 11, 12, 17, 18, 23, 24, 25, 26, 27, 28, 29]
+
+    >>> partitions = [
+    ...     [0, 1, 1, 1, 0],
+    ...     [0, 1, 1, 1, 0],
+    ...     [0, 0, 1, 1, 0],
+    ...     [0, 0, 0, 0, 0],
+    ... ]
+    >>> is_on_global_perimeter = np.full_like(partitions, True)
+    >>> is_on_global_perimeter[1:-1, 1:-1] = False
+    >>> adjacency = _get_d4_adjacency((4, 5))
+    >>> is_perimeter_edge(
+    ...     adjacency,
+    ...     partitions,
+    ...     1,
+    ...     is_on_global_perimeter=is_on_global_perimeter,
+    ... )
+    array([[ 1,  2],
+           [ 1,  6],
+           [ 2,  3],
+           [ 3,  8],
+           [ 6,  7],
+           [ 7, 12],
+           [ 8, 13],
+           [12, 13]])
     """
     partitions = np.asarray(partitions).ravel()
 
