@@ -185,3 +185,42 @@ def map_reverse_pairs(
         raise ValueError("Some pairs have no reverse.")
 
     return out
+
+
+def unique_pairs(pairs: ArrayLike) -> NDArray:
+    """Find unique pairs, ignoring pair ordering.
+
+    Parameters
+    ----------
+    pairs : (n, 2) array_like
+        Each row is a pair. Elements are sorted within each row so (a, b) == (b, a).
+
+    Returns
+    -------
+    (m, 2) ndarray
+        Unique pairs.
+
+    Examples
+    --------
+    >>> nodes_at_link = np.asarray(
+    ...     [
+    ...         [0, 1],
+    ...         [2, 4],
+    ...         [1, 0],
+    ...         [3, 2],
+    ...     ]
+    ... )
+    >>> unique_pairs(nodes_at_link)
+    array([[0, 1], [2, 3], [2, 4]])
+    """
+    pairs = np.asarray(pairs)
+    if pairs.ndim != 2 or pairs.shape[1] != 2:
+        raise ValueError("pairs must be a 2D array with shape (n_pairs, 2)")
+
+    normalized_pairs = np.sort(pairs, axis=1)
+    pair_dtype = np.dtype(
+        [("a", normalized_pairs.dtype), ("b", normalized_pairs.dtype)]
+    )
+    records = normalized_pairs.view(pair_dtype).ravel()
+
+    return np.unique(records).view(pairs.dtype).reshape((-1, 2))

@@ -5,6 +5,7 @@ from numpy.testing import assert_array_equal
 from landlab_parallel.utilities import build_csr_array
 from landlab_parallel.utilities import map_reverse_pairs
 from landlab_parallel.utilities import roll_values
+from landlab_parallel.utilities import unique_pairs
 
 
 @pytest.mark.parametrize("dtype", [None, int, float, bool, np.uint8, np.float32])
@@ -169,3 +170,62 @@ def test_map_reverse_with_bad_keyword(if_missing):
     ]
     with pytest.raises(ValueError):
         map_reverse_pairs(pairs, if_missing=if_missing)
+
+
+def test_unique_pairs_rows_are_normalized():
+    actual = unique_pairs([[0, 1], [2, 4], [1, 0], [3, 2]])
+
+    assert np.all(actual[:, 0] <= actual[:, 1])
+    assert_array_equal(actual, [[0, 1], [2, 3], [2, 4]])
+
+
+def test_unique_pairs_with_negative_values_and_mixed_order():
+    actual = unique_pairs([[5, -2], [-2, 5], [3, 3], [1, -10], [-10, 1]])
+
+    assert np.all(actual[:, 0] <= actual[:, 1])
+    assert_array_equal(actual, [[-10, 1], [-2, 5], [3, 3]])
+
+
+@pytest.mark.parametrize("dtype", (np.int32, bool, np.float32, float, int))
+def test_unique_pairs_dtype_is_preserved(dtype):
+    pairs = np.array([[0, 1], [2, 4], [1, 0], [3, 2]], dtype=dtype)
+    actual = unique_pairs(pairs).dtype
+    assert actual == dtype
+
+
+@pytest.mark.parametrize("array", ([], [0, 1], [[0, 1, 2], [3, 4, 5]]))
+def test_unique_pairs_invalid_shape(array):
+    with pytest.raises(ValueError, match="pairs must be a 2D array"):
+        unique_pairs(array)
+
+
+def test_unique_pairs_equivalence_to_numpy_unique():
+    rng = np.random.default_rng(1945)
+    pairs = rng.integers(-1000, 1000, size=(10_000, 2), dtype=np.int64)
+
+    expected = np.unique(np.sort(pairs, axis=1), axis=0)
+
+    actual = unique_pairs(pairs)
+
+    assert_array_equal(actual, expected)
+
+
+def test_unique_pairs_non_contiguous_input():
+    pairs = np.arange(40).reshape((10, -1))
+
+    view = pairs[:, ::2]
+    assert not view.flags["C_CONTIGUOUS"]
+
+    actual = unique_pairs(view)
+
+    expected = np.unique(np.sort(view, axis=1), axis=0)
+    assert_array_equal(actual, expected)
+
+
+def test_unique_pairs_multiple_applications_unchanged():
+    rng = np.random.default_rng(1973)
+    pairs = rng.integers(0, 100, size=(1000, 2))
+    out_1 = unique_pairs(pairs)
+    out_2 = unique_pairs(out_1)
+
+    assert_array_equal(out_1, out_2)
