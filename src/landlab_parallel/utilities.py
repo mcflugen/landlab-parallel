@@ -233,7 +233,38 @@ def wedge_is_inside_target(
     is_in_target: ArrayLike,
     side: Literal["left", "right"],
 ):
-    """
+    """Determine whether each edge's wedge lies entirely inside a target partition.
+
+    A *wedge* is defined as the triangle formed by an edge and one of its
+    neighboring edges in the adjacency structure. This function checks,
+    for each edge, whether the edge's tail node, head node, and its
+    left- or right-adjacent neighbor node are all marked as being inside
+    the target partition.
+
+    Parameters
+    ----------
+    indptr : (n_nodes + 1,) array_like of int
+        CSR row pointer array. For each node *i*, the neighbors of *i*
+        are stored in ``head[indptr[i]:indptr[i+1]]``.
+    tail : (n_edges,) array_like of int
+        Tail node index for each edge. Must align with ``head``.
+    head : (n_edges,) array_like of int
+        Head node index for each edge. Must align with ``tail``.
+    is_in_target : (n_nodes,) array_like of bool
+        Boolean mask indicating which nodes are in the target partition.
+    side : {'left', 'right'}
+        Which wedge to check. For an edge (tail → head), the wedge is
+        formed with the next neighbor of ``head`` when traversed in the
+        given direction around the adjacency list:
+        - 'left': use the clockwise neighbor (implemented as a roll right)
+        - 'right': use the counter-clockwise neighbor (implemented as a roll left)
+
+    Returns
+    -------
+    inside_wedge : (n_edges,) ndarray of bool
+        Boolean mask indicating, for each edge, whether the wedge defined by
+        (tail, head, neighbor) lies entirely inside the target partition.
+
     Examples
     --------
     >>> from landlab_parallel.adjacency import _get_d4_adjacency
