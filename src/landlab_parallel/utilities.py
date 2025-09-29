@@ -433,11 +433,6 @@ def is_perimeter_edge(
     indptr = np.asarray(indptr, dtype=np.intp).ravel()
     is_in_target = partitions == target_partition
 
-    if tail.shape != head.shape:
-        raise ValueError(
-            f"tail and head must have same shape ({tail.shape} vs {head.shape})"
-        )
-
     both_in = is_in_target[tail] & is_in_target[head]
 
     left_in = wedge_is_inside_target(indptr, tail, head, is_in_target, side="left")
