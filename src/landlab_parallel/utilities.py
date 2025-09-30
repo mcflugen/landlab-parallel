@@ -244,13 +244,12 @@ def wedge_is_inside_target(
     side: Literal["left", "right"],
     is_on_perimeter: ArrayLike | None = None,
 ):
-    """Determine whether each edge's wedge lies entirely inside a target partition.
+    """Determine if each edge's wedge lies entirely inside a target partition.
 
     A *wedge* is defined as the triangle formed by an edge and one of its
-    neighboring edges in the adjacency structure. This function checks,
-    for each edge, whether the edge's tail node, head node, and its
-    left- or right-adjacent neighbor node are all marked as being inside
-    the target partition.
+    neighboring edges. This function checks, for each edge, whether the edge's
+    tail node, head node, and its left- or right-adjacent neighbor node are all
+    marked as being inside the target partition.
 
     Parameters
     ----------
@@ -269,6 +268,9 @@ def wedge_is_inside_target(
         given direction around the adjacency list:
         - 'left': use the clockwise neighbor (implemented as a roll right)
         - 'right': use the counter-clockwise neighbor (implemented as a roll left)
+    is_on_perimeter : (n_nodes,) array_like of bool, optional
+        Boolean mask indicating if a node is on the perimeter. If not provided,
+        all nodes are assumed to be on the perimeter.
 
     Returns
     -------
