@@ -321,3 +321,128 @@ def wedge_is_inside_target(
             is_in_target[neighbor],
         )
     )
+
+
+def is_perimeter_edge(
+    adjacency: list[list[int]],
+    partitions: NDArray[np.int64],
+    target_partition: int,
+    is_on_global_perimeter: ArrayLike | None = None,
+) -> NDArray[np.int64]:
+    """Find edges on the perimeter of a partition.
+
+    Parameters
+    ----------
+    adjacency: list of list of int
+        Neighbor nodes for each node in the grid. Neighbors must
+        be in rotational order.
+    partitions : array_like of int
+        Partition matrix describing ownership of each node.
+
+    Returns
+    -------
+    ndarray of int, shape (n_edges, 2)
+        Partition perimeter edges defined by their end nodes.
+
+    Examples
+    --------
+    >>> from landlab_parallel.adjacency import _get_d4_adjacency
+    >>> partitions = [
+    ...     [0, 0, 0, 0, 0, 0],
+    ...     [0, 0, 1, 1, 1, 0],
+    ...     [0, 0, 1, 1, 1, 0],
+    ...     [0, 0, 0, 1, 1, 0],
+    ...     [0, 0, 0, 0, 0, 0],
+    ... ]
+    >>> adjacency = _get_d4_adjacency((5, 6))
+    >>> is_perimeter_edge(adjacency, partitions, 1)
+    array([[ 8,  9],
+           [ 8, 14],
+           [ 9, 10],
+           [10, 16],
+           [14, 15],
+           [15, 21],
+           [16, 22],
+           [21, 22]])
+
+    >>> from landlab_parallel.adjacency import _get_odd_r_adjacency
+    >>> adjacency = _get_odd_r_adjacency((5, 6))
+    >>> is_perimeter_edge(adjacency, partitions, 1)
+    array([[ 8,  9],
+           [ 8, 14],
+           [ 9, 10],
+           [10, 16],
+           [14, 15],
+           [15, 21],
+           [16, 22],
+           [21, 22]])
+
+    >>> from landlab import HexModelGrid
+    >>> grid = HexModelGrid((5, 6), node_layout="rect")
+    >>> [int(n) for n in sorted(grid.perimeter_nodes)]
+    [0, 1, 2, 3, 4, 5, 6, 11, 12, 17, 18, 23, 24, 25, 26, 27, 28, 29]
+
+    >>> partitions = np.full((5, 6), 1)
+    >>> is_on_global_perimeter = np.full_like(partitions, True)
+    >>> is_on_global_perimeter[1:-1, 1:-1] = False
+    >>> adjacency = _get_odd_r_adjacency((5, 6))
+    >>> edges = is_perimeter_edge(
+    ...     adjacency,
+    ...     partitions,
+    ...     1,
+    ...     is_on_global_perimeter=is_on_global_perimeter,
+    ... )
+    >>> [int(n) for n in sorted(set(edges.ravel()))]
+    [0, 1, 2, 3, 4, 5, 6, 11, 12, 17, 18, 23, 24, 25, 26, 27, 28, 29]
+
+    >>> partitions = [
+    ...     [0, 1, 1, 1, 0],
+    ...     [0, 1, 1, 1, 0],
+    ...     [0, 0, 1, 1, 0],
+    ...     [0, 0, 0, 0, 0],
+    ... ]
+    >>> is_on_global_perimeter = np.full_like(partitions, True)
+    >>> is_on_global_perimeter[1:-1, 1:-1] = False
+    >>> adjacency = _get_d4_adjacency((4, 5))
+    >>> is_perimeter_edge(
+    ...     adjacency,
+    ...     partitions,
+    ...     1,
+    ...     is_on_global_perimeter=is_on_global_perimeter,
+    ... )
+    array([[ 1,  2],
+           [ 1,  6],
+           [ 2,  3],
+           [ 3,  8],
+           [ 6,  7],
+           [ 7, 12],
+           [ 8, 13],
+           [12, 13]])
+    """
+    partitions = np.asarray(partitions).ravel()
+
+    indptr, indices = build_csr_array(adjacency)
+    n_nodes = len(indptr) - 1
+
+    nodes_at_link = np.column_stack(
+        (np.repeat(np.arange(n_nodes), np.diff(indptr)), indices)
+    )
+    tail = nodes_at_link[:, 0]
+    head = nodes_at_link[:, 1]
+
+    indptr = np.asarray(indptr, dtype=np.intp).ravel()
+    is_in_target = partitions == target_partition
+
+    both_in = is_in_target[tail] & is_in_target[head]
+
+    left_in = wedge_is_inside_target(indptr, tail, head, is_in_target, side="left")
+    right_in = wedge_is_inside_target(indptr, tail, head, is_in_target, side="right")
+
+    is_perimeter = both_in & (left_in != right_in)
+    if is_on_global_perimeter is not None:
+        is_on_global_perimeter = np.asarray(is_on_global_perimeter, dtype=bool).ravel()
+        is_perimeter |= both_in & (
+            is_on_global_perimeter[tail] & is_on_global_perimeter[head]
+        )
+
+    return unique_pairs(nodes_at_link[is_perimeter])
