@@ -228,6 +228,14 @@ def unique_pairs(pairs: ArrayLike) -> NDArray:
     return np.unique(records).view(pairs.dtype).reshape((-1, 2))
 
 
+def lookup_or_raise(mapping: dict[str, Any], key: str):
+    try:
+        return mapping[key]
+    except KeyError:
+        choices = ", ".join(sorted(map(repr, mapping)))
+        raise ValueError(f"{key!r}: unknown key, not one of {choices}")
+
+
 def wedge_is_inside_target(
     indptr: ArrayLike,
     tail: ArrayLike,
