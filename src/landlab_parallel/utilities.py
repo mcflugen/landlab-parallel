@@ -9,6 +9,8 @@ from numpy.typing import ArrayLike
 from numpy.typing import DTypeLike
 from numpy.typing import NDArray
 
+from landlab_parallel.jagged import validate_jagged
+
 
 def build_csr_array(
     rows: Sequence[Sequence[Any]],
@@ -226,20 +228,28 @@ def unique_pairs(pairs: ArrayLike) -> NDArray:
     return np.unique(records).view(pairs.dtype).reshape((-1, 2))
 
 
+def lookup_or_raise(mapping: dict[str, Any], key: str):
+    try:
+        return mapping[key]
+    except KeyError:
+        choices = ", ".join(sorted(map(repr, mapping)))
+        raise ValueError(f"{key!r}: unknown key, not one of {choices}")
+
+
 def wedge_is_inside_target(
     indptr: ArrayLike,
     tail: ArrayLike,
     head: ArrayLike,
     is_in_target: ArrayLike,
     side: Literal["left", "right"],
+    is_on_perimeter: ArrayLike | None = None,
 ):
-    """Determine whether each edge's wedge lies entirely inside a target partition.
+    """Determine if each edge's wedge lies entirely inside a target partition.
 
     A *wedge* is defined as the triangle formed by an edge and one of its
-    neighboring edges in the adjacency structure. This function checks,
-    for each edge, whether the edge's tail node, head node, and its
-    left- or right-adjacent neighbor node are all marked as being inside
-    the target partition.
+    neighboring edges. This function checks, for each edge, whether the edge's
+    tail node, head node, and its left- or right-adjacent neighbor node are all
+    marked as being inside the target partition.
 
     Parameters
     ----------
@@ -258,6 +268,9 @@ def wedge_is_inside_target(
         given direction around the adjacency list:
         - 'left': use the clockwise neighbor (implemented as a roll right)
         - 'right': use the counter-clockwise neighbor (implemented as a roll left)
+    is_on_perimeter : (n_nodes,) array_like of bool, optional
+        Boolean mask indicating if a node is on the perimeter. If not provided,
+        all nodes are assumed to be on the perimeter.
 
     Returns
     -------
@@ -292,32 +305,40 @@ def wedge_is_inside_target(
     ... )
     array([1, 1, 0, 1, 0, 0, 0, 1, 1, 0, 1, 0, 0, 0])
     """
+    direction = lookup_or_raise({"left": "right", "right": "left"}, side)
+
     indptr = np.asarray(indptr, dtype=np.intp).ravel()
     tail = np.asarray(tail, dtype=np.intp).ravel()
     head = np.asarray(head, dtype=np.intp).ravel()
     is_in_target = np.asarray(is_in_target, dtype=bool).ravel()
+    if is_on_perimeter is not None:
+        is_on_perimeter = np.asarray(is_on_perimeter, dtype=bool).ravel()
 
-    if side not in ("left", "right"):
-        raise ValueError(f"side must be 'left' or 'right' (got {side!r})")
-    if tail.size != head.size:
+    validate_jagged(indptr, tail)
+    validate_jagged(indptr, head)
+    if is_in_target.size != len(indptr) - 1:
         raise ValueError(
-            f"tail and head must have the same size ({tail.size} vs {head.size})"
+            f"is_in_target is wrong size, should be length {len(indptr) - 1},"
+            f" got {is_in_target.size}"
         )
-    if indptr.size == 0:
-        raise ValueError("indptr must be a non-empty 1D array")
+    if is_on_perimeter is not None and is_on_perimeter.size != len(indptr) - 1:
+        raise ValueError(
+            f"is_on_perimeter is wrong size, should be length {len(indptr) - 1},"
+            f" got {is_on_perimeter.size}"
+        )
+
     if tail.size == 0:
         return np.zeros(0, dtype=bool)
 
-    map_side_to_direction: dict[str, Literal["left", "right"]] = {
-        "left": "right",
-        "right": "left",
-    }
-    neighbor = roll_values(indptr, head, direction=map_side_to_direction[side])
+    neighbor = roll_values(indptr, head, direction=direction)
 
-    return np.logical_and.reduce(
-        (
-            is_in_target[tail],
-            is_in_target[head],
-            is_in_target[neighbor],
-        )
+    wedge_is_in_target = (
+        is_in_target[tail] & is_in_target[head] & is_in_target[neighbor]
     )
+
+    if is_on_perimeter is not None:
+        wedge_is_in_target &= ~(
+            is_on_perimeter[tail] & is_on_perimeter[head] & is_on_perimeter[neighbor]
+        )
+
+    return wedge_is_in_target
