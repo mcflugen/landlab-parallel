@@ -10,7 +10,7 @@ def validate_jagged(
     values: ArrayLike,
     n_rows: int | None = None,
 ) -> tuple[NDArray, NDArray]:
-    """Validate a offsets/values pair representing a jagged array.
+    """Validate an offsets/values pair representing a jagged array.
 
     Parameters
     ----------
