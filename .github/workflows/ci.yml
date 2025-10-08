@@ -22,7 +22,7 @@ jobs:
         id: check-publish
         run: |
           tag_name="${GITHUB_REF#refs/tags/}"
-          if [[ "$tag_name" =~ ^v[0-9]+\.[0-9]+\.[0-9]+[ab][0-9]+$ ]]; then
+          if [[ "$tag_name" =~ ^v[0-9]+\.[0-9]+\.[0-9]+\.dev[0-9]+$ ]]; then
             publish_url="https://test.pypi.org/legacy/"
           elif [[ "$tag_name" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             publish_url="https://upload.pypi.org/legacy/"
@@ -141,3 +141,29 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           slug: mcflugen/landlab-parallel
+
+  publish:
+    needs:
+      - check-tag
+      - coverage
+      - test
+      - example
+    name: "Publish to PyPI/TestPyPI"
+    runs-on: ubuntu-latest
+
+    permissions:
+      id-token: write
+
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          pattern: "build-*"
+          merge-multiple: true
+          path: ${{ github.workspace }}/dist
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        if: ${{ startsWith(needs.check-tag.outputs.publish_url, 'http') }}
+        with:
+          repository-url: ${{ needs.check-tag.outputs.publish_url }}
+          skip-existing: true
+          print-hash: true
+          verify-metadata: false
