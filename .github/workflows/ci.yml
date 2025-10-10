@@ -81,7 +81,7 @@ jobs:
       - name: Run the example
         run: |
           pip install nox
-          nox -s run-example
+          nox -s run-example --force-pythons=${{ matrix.python-version }}
 
   test:
     needs: build-sdist
