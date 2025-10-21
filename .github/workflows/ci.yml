@@ -114,7 +114,7 @@ jobs:
       - name: Test
         run: |
           pip install nox
-          nox --non-interactive --error-on-missing-interpreter -s test -- dist/*.tar.gz
+          nox -s test -- dist/*.tar.gz
 
   coverage:
     needs: build-sdist
@@ -134,7 +134,7 @@ jobs:
       - name: Test
         run: |
           pip install nox
-          nox --non-interactive --error-on-missing-interpreter -s coverage
+          nox -s coverage
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v5
