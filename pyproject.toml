@@ -20,6 +20,7 @@ keywords = [
   'python',
 ]
 license = "MIT"
+license-files = ["LICENSE.md"]
 classifiers = [
   "Development Status :: 4 - Beta",
   "Operating System :: OS Independent",
