@@ -19,7 +19,7 @@ keywords = [
   'parallel',
   'python',
 ]
-license = {text = "MIT"}
+license = "MIT"
 classifiers = [
   "Development Status :: 4 - Beta",
   "Operating System :: OS Independent",
