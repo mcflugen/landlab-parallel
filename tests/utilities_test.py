@@ -234,7 +234,7 @@ def test_unique_pairs_multiple_applications_unchanged():
 
 @pytest.mark.parametrize("side", ("", None, "foo", " left", "right ", "LEFT"))
 def test_wedge_bad_side(side):
-    with pytest.raises(ValueError, match="side must be"):
+    with pytest.raises(ValueError, match="unknown key"):
         wedge_is_inside_target([0, 1, 2], [1, 0], [0, 1], [True, True], side=side)
 
 
@@ -247,26 +247,26 @@ def test_wedge_bad_side(side):
     ),
 )
 def test_wedge_bad_head_tail_size(side, tail, head):
-    with pytest.raises(ValueError, match="tail and head must have the same size"):
+    with pytest.raises(ValueError, match="mismatch in length"):
         wedge_is_inside_target([0, 1, 2], tail, head, [True, True], side=side)
 
 
 @pytest.mark.parametrize("side", ("left", "right"))
 def test_wedge_empty_indptr(side):
-    with pytest.raises(ValueError, match="indptr must be a non-empty"):
+    with pytest.raises(ValueError, match="offsets must have length"):
         wedge_is_inside_target([], [0, 1], [1, 0], [True, True], side=side)
 
 
 @pytest.mark.parametrize("side", ("left", "right"))
 def test_wedge_empty_head_tail(side):
-    actual = wedge_is_inside_target([0, 1, 2], [], [], [True, True], side=side)
+    actual = wedge_is_inside_target([0], [], [], [], side=side)
     assert_array_equal(actual, [])
     assert actual.dtype == bool
 
 
 @pytest.mark.parametrize("side", ("left", "right"))
 def test_wedge_all_in(side):
-    indptr = [2, 2, 2, 2]
+    indptr = [0, 2, 4, 6, 8]
     tails = [0, 0, 1, 1, 2, 2, 3, 3]
     heads = [1, 2, 0, 3, 0, 3, 1, 2]
 
